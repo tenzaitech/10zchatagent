@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Tenzai Sushi Menus</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2563eb;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .config-section {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2563eb;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        button {
+            background: #2563eb;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #1d4ed8;
+        }
+        
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        
+        .log {
+            background: #111827;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin-top: 20px;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 15px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            flex: 1;
+            margin: 0 5px;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        
+        .error {
+            color: #dc2626;
+        }
+        
+        .success {
+            color: #059669;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍣 Import Tenzai Sushi Menus</h1>
+        
+        <div class="config-section">
+            <h3>🔧 การตั้งค่า Supabase</h3>
+            <label>Supabase URL:</label>
+            <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+            
+            <label>Service Role Key:</label>
+            <input type="password" id="serviceKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+        </div>
+        
+        <div class="config-section">
+            <h3>📁 เลือกไฟล์ Excel</h3>
+            <input type="file" id="excelFile" accept=".xlsx,.xls" />
+        </div>
+        
+        <button onclick="testConnection()">🔗 ทดสอบการเชื่อมต่อ</button>
+        <button onclick="analyzeFile()" id="analyzeBtn" disabled>📊 วิเคราะห์ไฟล์</button>
+        <button onclick="importMenus()" id="importBtn" disabled>🚀 เริ่ม Import เมนู</button>
+        
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat">
+                <div class="stat-number" id="totalMenus">0</div>
+                <div>เมนูทั้งหมด</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="successCount">0</div>
+                <div>สำเร็จ</div>
+            </div>
+            <div class="stat">
+                <div class="stat-number" id="errorCount">0</div>
+                <div>ข้อผิดพลาด</div>
+            </div>
+        </div>
+        
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        let supabase = null;
+        let menuData = [];
+        let categories = [];
+        
+        function log(message, type = 'info') {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            logElement.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        async function testConnection() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('serviceKey').value;
+            
+            if (!url || !key) {
+                log('กรุณาใส่ Supabase URL และ Service Key', 'error');
+                return;
+            }
+            
+            try {
+                log('กำลังทดสอบการเชื่อมต่อ...');
+                
+                // Import Supabase dynamically
+                const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+                supabase = createClient(url, key);
+                
+                // Test connection
+                const { data, error } = await supabase.from('categories').select('count');
+                
+                if (error) {
+                    log(`การเชื่อมต่อล้มเหลว: ${error.message}`, 'error');
+                    return;
+                }
+                
+                log('เชื่อมต่อ Supabase สำเร็จ! ✅', 'success');
+                
+                // Get categories
+                const { data: categoriesData, error: catError } = await supabase
+                    .from('categories')
+                    .select('*');
+                
+                if (catError) {
+                    log(`ไม่สามารถดึงหมวดหมู่: ${catError.message}`, 'error');
+                    return;
+                }
+                
+                categories = categoriesData;
+                log(`พบหมวดหมู่ ${categories.length} หมวด`, 'success');
+                
+                document.getElementById('analyzeBtn').disabled = false;
+                
+            } catch (error) {
+                log(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+        
+        async function analyzeFile() {
+            const fileInput = document.getElementById('excelFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('กรุณาเลือกไฟล์ Excel', 'error');
+                return;
+            }
+            
+            try {
+                log('กำลังวิเคราะห์ไฟล์...');
+                
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data);
+                
+                if (!workbook.SheetNames.includes('เมนู')) {
+                    log('ไม่พบ sheet "เมนู" ในไฟล์', 'error');
+                    return;
+                }
+                
+                const worksheet = workbook.Sheets['เมนู'];
+                const rawData = XLSX.utils.sheet_to_json(worksheet);
+                
+                // Clean และ validate ข้อมูล
+                menuData = rawData
+                    .filter(item => item['ชื่อเมนู'] && item['ราคา'])
+                    .map(item => {
+                        const price = parseFloat(item['ราคา']);
+                        if (isNaN(price) || price <= 0) {
+                            log(`ราคาไม่ถูกต้อง: ${item['ชื่อเมนู']} - ${item['ราคา']}`, 'error');
+                            return null;
+                        }
+                        
+                        return {
+                            menu_code: item['รหัสเมนู'] || null,
+                            category_name: item['หมวดหมู่'] || 'OTHER MENU',
+                            name: item['ชื่อเมนู'],
+                            name_thai: item['ชื่อเมนู 2'] || item['ชื่อเมนู'],
+                            description: item['รายละเอียด'] || null,
+                            price: price,
+                            is_delivery: item['การจัดส่ง'] === 'Yes'
+                        };
+                    })
+                    .filter(item => item !== null);
+                
+                log(`วิเคราะห์เสร็จ: พบเมนู ${menuData.length} รายการ`, 'success');
+                
+                // แสดงสถิติ
+                const stats = {};
+                menuData.forEach(item => {
+                    stats[item.category_name] = (stats[item.category_name] || 0) + 1;
+                });
+                
+                log('การกระจายตามหมวดหมู่:');
+                Object.entries(stats)
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([cat, count]) => {
+                        log(`  ${cat}: ${count} รายการ`);
+                    });
+                
+                document.getElementById('totalMenus').textContent = menuData.length;
+                document.getElementById('stats').style.display = 'flex';
+                document.getElementById('importBtn').disabled = false;
+                
+            } catch (error) {
+                log(`เกิดข้อผิดพลาดในการวิเคราห์ไฟล์: ${error.message}`, 'error');
+            }
+        }
+        
+        async function importMenus() {
+            if (!supabase || menuData.length === 0) {
+                log('กรุณาทดสอบการเชื่อมต่อและวิเคราะห์ไฟล์ก่อน', 'error');
+                return;
+            }
+            
+            log('เริ่มต้น Import เมนู...');
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('importBtn').disabled = true;
+            
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (let i = 0; i < menuData.length; i++) {
+                const menu = menuData[i];
+                const progress = ((i + 1) / menuData.length) * 100;
+                
+                try {
+                    // หา category_id
+                    const category = categories.find(cat => cat.name === menu.category_name);
+                    if (!category && menu.category_name !== 'OTHER MENU') {
+                        log(`ไม่พบหมวดหมู่: ${menu.category_name} สำหรับเมนู ${menu.name}`, 'error');
+                        errorCount++;
+                        continue;
+                    }
+                    
+                    const menuInsert = {
+                        menu_code: menu.menu_code,
+                        category_id: category ? category.id : null,
+                        name: menu.name,
+                        name_thai: menu.name_thai,
+                        description: menu.description,
+                        price: menu.price,
+                        is_delivery: menu.is_delivery
+                    };
+                    
+                    const { error } = await supabase
+                        .from('menus')
+                        .insert(menuInsert);
+                    
+                    if (error) {
+                        log(`Error inserting ${menu.name}: ${error.message}`, 'error');
+                        errorCount++;
+                    } else {
+                        successCount++;
+                        if (i % 50 === 0) {
+                            log(`Import แล้ว ${successCount} รายการ...`);
+                        }
+                    }
+                    
+                } catch (error) {
+                    log(`เกิดข้อผิดพลาด: ${menu.name} - ${error.message}`, 'error');
+                    errorCount++;
+                }
+                
+                // Update progress
+                document.getElementById('progressBar').style.width = `${progress}%`;
+                document.getElementById('successCount').textContent = successCount;
+                document.getElementById('errorCount').textContent = errorCount;
+                
+                // ให้ browser breathe
+                if (i % 10 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+            }
+            
+            log(`Import เสร็จสิ้น! สำเร็จ: ${successCount}, ผิดพลาด: ${errorCount}`, 'success');
+            document.getElementById('importBtn').disabled = false;
+        }
+    </script>
+</body>
+</html>

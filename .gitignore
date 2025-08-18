@@ -1,0 +1,112 @@
+# Environment variables and configuration
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+*.log
+n8n-data/*.log
+n8n-data/n8nEventLog*.log
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+n8n-data/database.sqlite
+n8n-data/crash.journal
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker volumes and data
+volumes/
+data/
+
+# Backup files
+*.bak
+*.backup
+backups/*.bak
+backups/*.backup
+
+# SSH keys and sensitive data
+*.key
+*.pem
+*.p12
+*.pfx
+ssh/
+n8n-data/ssh/
+
+# Binary data
+n8n-data/binaryData/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Bower dependency directory
+bower_components
+
+# Build directories
+build/
+dist/
+out/
+
+# Windows batch files (keeping manual start file but ignoring other temp batch files)
+*.bat
+!manual-start-all-app.bat

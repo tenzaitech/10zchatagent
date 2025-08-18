@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenzai Sushi - Admin Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .config-panel {
+            background: #f8fafc;
+            padding: 20px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr auto;
+            gap: 15px;
+            align-items: end;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        input, select {
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #2563eb;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: #059669;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #d97706;
+            color: white;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            min-height: 600px;
+        }
+        
+        .sidebar {
+            background: #f1f5f9;
+            padding: 20px;
+            border-right: 1px solid #e2e8f0;
+        }
+        
+        .category-list {
+            list-style: none;
+        }
+        
+        .category-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .category-item:hover {
+            background: #e2e8f0;
+            transform: translateX(5px);
+        }
+        
+        .category-item.active {
+            background: #2563eb;
+            color: white;
+        }
+        
+        .menu-content {
+            padding: 20px;
+        }
+        
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .menu-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+        }
+        
+        .menu-card:hover {
+            border-color: #2563eb;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .menu-code {
+            background: #f3f4f6;
+            color: #6b7280;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        
+        .menu-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        
+        .menu-name-thai {
+            color: #6b7280;
+            margin-bottom: 10px;
+        }
+        
+        .menu-price {
+            font-size: 20px;
+            font-weight: 700;
+            color: #059669;
+            margin-bottom: 15px;
+        }
+        
+        .menu-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+        
+        .form-row {
+            margin-bottom: 15px;
+        }
+        
+        .form-row label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .form-row input, .form-row select, .form-row textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        
+        .form-row textarea {
+            height: 80px;
+            resize: vertical;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+        
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #fecaca;
+        }
+        
+        .success {
+            background: #f0fdf4;
+            color: #059669;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #bbf7d0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍣 Tenzai Sushi Admin</h1>
+            <p>ระบบจัดการเมนูและข้อมูลร้าน</p>
+        </div>
+        
+        <div class="config-panel">
+            <div class="config-grid">
+                <div class="form-group">
+                    <label>Supabase URL:</label>
+                    <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+                </div>
+                <div class="form-group">
+                    <label>Service Role Key:</label>
+                    <input type="password" id="serviceKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+                </div>
+                <button class="btn btn-primary" onclick="connectDatabase()">เชื่อมต่อ</button>
+            </div>
+        </div>
+        
+        <div id="connectionStatus"></div>
+        
+        <div class="main-content" id="mainContent" style="display: none;">
+            <div class="sidebar">
+                <div class="menu-header">
+                    <h3>หมวดหมู่</h3>
+                    <button class="btn btn-success btn-sm" onclick="showAddCategoryModal()">+ เพิ่ม</button>
+                </div>
+                <ul class="category-list" id="categoryList"></ul>
+            </div>
+            
+            <div class="menu-content">
+                <div class="stats" id="stats"></div>
+                
+                <div class="menu-header">
+                    <h3 id="currentCategoryName">เลือกหมวดหมู่</h3>
+                    <button class="btn btn-success" onclick="showAddMenuModal()">+ เพิ่มเมนู</button>
+                </div>
+                
+                <div class="search-box">
+                    <input type="text" class="search-input" id="searchInput" placeholder="ค้นหาเมนู..." onkeyup="filterMenus()">
+                    <button class="btn btn-primary" onclick="filterMenus()">ค้นหา</button>
+                </div>
+                
+                <div class="menu-grid" id="menuGrid"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal สำหรับเพิ่ม/แก้ไขเมนู -->
+    <div class="modal" id="menuModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">เพิ่มเมนูใหม่</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="menuForm">
+                <div class="form-row">
+                    <label>รหัสเมนู:</label>
+                    <input type="text" id="menuCode" placeholder="เช่น SU-01">
+                </div>
+                <div class="form-row">
+                    <label>หมวดหมู่:</label>
+                    <select id="menuCategory" required></select>
+                </div>
+                <div class="form-row">
+                    <label>ชื่อเมนู (EN):</label>
+                    <input type="text" id="menuName" required>
+                </div>
+                <div class="form-row">
+                    <label>ชื่อเมนู (TH):</label>
+                    <input type="text" id="menuNameThai">
+                </div>
+                <div class="form-row">
+                    <label>รายละเอียด:</label>
+                    <textarea id="menuDescription"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>ราคา (บาท):</label>
+                    <input type="number" id="menuPrice" step="0.01" required>
+                </div>
+                <div class="form-row">
+                    <label>รูปภาพ URL:</label>
+                    <input type="url" id="menuImage" placeholder="https://...">
+                </div>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="menuDelivery" checked>
+                        <label for="menuDelivery">สามารถจัดส่งได้</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="menuAvailable" checked>
+                        <label for="menuAvailable">พร้อมขาย</label>
+                    </div>
+                </div>
+                <div class="form-row" style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal สำหรับเพิ่มหมวดหมู่ -->
+    <div class="modal" id="categoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>เพิ่มหมวดหมู่ใหม่</h3>
+                <button class="close-btn" onclick="closeCategoryModal()">&times;</button>
+            </div>
+            <form id="categoryForm">
+                <div class="form-row">
+                    <label>ชื่อหมวดหมู่:</label>
+                    <input type="text" id="categoryName" required>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="categoryActive" checked>
+                    <label for="categoryActive">เปิดใช้งาน</label>
+                </div>
+                <div class="form-row" style="margin-top: 20px;">
+                    <button type="submit" class="btn btn-success" style="width: 100%;">บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        let supabase = null;
+        let categories = [];
+        let menus = [];
+        let currentCategory = null;
+        let editingMenu = null;
+        
+        async function connectDatabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('serviceKey').value;
+            const statusDiv = document.getElementById('connectionStatus');
+            
+            if (!url || !key) {
+                showStatus('กรุณาใส่ Supabase URL และ Service Key', 'error');
+                return;
+            }
+            
+            try {
+                supabase = window.supabase.createClient(url, key);
+                
+                // Test connection
+                const { data, error } = await supabase.from('categories').select('count');
+                
+                if (error) {
+                    showStatus(`การเชื่อมต่อล้มเหลว: ${error.message}`, 'error');
+                    return;
+                }
+                
+                showStatus('เชื่อมต่อ Supabase สำเร็จ! 🎉', 'success');
+                document.getElementById('mainContent').style.display = 'grid';
+                
+                await loadData();
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+        
+        async function loadData() {
+            try {
+                // Load categories
+                const { data: categoriesData, error: catError } = await supabase
+                    .from('categories')
+                    .select('*')
+                    .order('name');
+                
+                if (catError) throw catError;
+                
+                categories = categoriesData;
+                renderCategories();
+                
+                // Load all menus
+                const { data: menusData, error: menuError } = await supabase
+                    .from('menus')
+                    .select(`
+                        *,
+                        categories (name)
+                    `)
+                    .order('name');
+                
+                if (menuError) throw menuError;
+                
+                menus = menusData;
+                renderStats();
+                
+                // Select first category
+                if (categories.length > 0) {
+                    selectCategory(categories[0]);
+                }
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาดในการโหลดข้อมูล: ${error.message}`, 'error');
+            }
+        }
+        
+        function renderCategories() {
+            const list = document.getElementById('categoryList');
+            list.innerHTML = categories.map(cat => `
+                <li class="category-item" onclick="selectCategory(${JSON.stringify(cat).replace(/"/g, '&quot;')})">
+                    <span>${cat.name}</span>
+                    <span style="background: ${cat.is_active ? '#10b981' : '#ef4444'}; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px;">
+                        ${cat.is_active ? 'เปิด' : 'ปิด'}
+                    </span>
+                </li>
+            `).join('');
+        }
+        
+        function selectCategory(category) {
+            currentCategory = category;
+            
+            // Update UI
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            event?.target.closest('.category-item')?.classList.add('active');
+            
+            document.getElementById('currentCategoryName').textContent = category.name;
+            
+            renderMenus();
+        }
+        
+        function renderMenus() {
+            if (!currentCategory) return;
+            
+            const categoryMenus = menus.filter(menu => menu.category_id === currentCategory.id);
+            const grid = document.getElementById('menuGrid');
+            
+            if (categoryMenus.length === 0) {
+                grid.innerHTML = '<div class="loading">ไม่มีเมนูในหมวดหมู่นี้</div>';
+                return;
+            }
+            
+            grid.innerHTML = categoryMenus.map(menu => `
+                <div class="menu-card">
+                    <div class="menu-code">${menu.menu_code || 'ไม่มีรหัส'}</div>
+                    <div class="menu-name">${menu.name}</div>
+                    <div class="menu-name-thai">${menu.name_thai || ''}</div>
+                    <div class="menu-price">${menu.price} บาท</div>
+                    <div style="margin-bottom: 15px;">
+                        <span style="background: ${menu.is_available ? '#10b981' : '#ef4444'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;">
+                            ${menu.is_available ? 'พร้อมขาย' : 'ไม่พร้อม'}
+                        </span>
+                        <span style="background: ${menu.is_delivery ? '#2563eb' : '#6b7280'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">
+                            ${menu.is_delivery ? 'จัดส่งได้' : 'ไม่จัดส่ง'}
+                        </span>
+                    </div>
+                    <div class="menu-actions">
+                        <button class="btn btn-warning btn-sm" onclick="editMenu('${menu.id}')">แก้ไข</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteMenu('${menu.id}', '${menu.name}')">ลบ</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function renderStats() {
+            const stats = document.getElementById('stats');
+            const totalMenus = menus.length;
+            const availableMenus = menus.filter(m => m.is_available).length;
+            const totalCategories = categories.filter(c => c.is_active).length;
+            const avgPrice = menus.reduce((sum, m) => sum + Number(m.price), 0) / totalMenus;
+            
+            stats.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${totalMenus}</div>
+                    <div>เมนูทั้งหมด</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${availableMenus}</div>
+                    <div>พร้อมขาย</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${totalCategories}</div>
+                    <div>หมวดหมู่</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgPrice.toFixed(0)}</div>
+                    <div>ราคาเฉลี่ย (บาท)</div>
+                </div>
+            `;
+        }
+        
+        function showAddMenuModal() {
+            editingMenu = null;
+            document.getElementById('modalTitle').textContent = 'เพิ่มเมนูใหม่';
+            document.getElementById('menuForm').reset();
+            
+            // Populate categories
+            const categorySelect = document.getElementById('menuCategory');
+            categorySelect.innerHTML = categories.map(cat => 
+                `<option value="${cat.id}" ${cat.id === currentCategory?.id ? 'selected' : ''}>${cat.name}</option>`
+            ).join('');
+            
+            document.getElementById('menuModal').style.display = 'flex';
+        }
+        
+        function editMenu(menuId) {
+            editingMenu = menus.find(m => m.id === menuId);
+            if (!editingMenu) return;
+            
+            document.getElementById('modalTitle').textContent = 'แก้ไขเมนู';
+            
+            // Fill form
+            document.getElementById('menuCode').value = editingMenu.menu_code || '';
+            document.getElementById('menuName').value = editingMenu.name;
+            document.getElementById('menuNameThai').value = editingMenu.name_thai || '';
+            document.getElementById('menuDescription').value = editingMenu.description || '';
+            document.getElementById('menuPrice').value = editingMenu.price;
+            document.getElementById('menuImage').value = editingMenu.image_url || '';
+            document.getElementById('menuDelivery').checked = editingMenu.is_delivery;
+            document.getElementById('menuAvailable').checked = editingMenu.is_available;
+            
+            // Populate categories
+            const categorySelect = document.getElementById('menuCategory');
+            categorySelect.innerHTML = categories.map(cat => 
+                `<option value="${cat.id}" ${cat.id === editingMenu.category_id ? 'selected' : ''}>${cat.name}</option>`
+            ).join('');
+            
+            document.getElementById('menuModal').style.display = 'flex';
+        }
+        
+        async function deleteMenu(menuId, menuName) {
+            if (!confirm(`ต้องการลบเมนู "${menuName}" หรือไม่?`)) return;
+            
+            try {
+                const { error } = await supabase
+                    .from('menus')
+                    .delete()
+                    .eq('id', menuId);
+                
+                if (error) throw error;
+                
+                showStatus(`ลบเมนู "${menuName}" สำเร็จ`, 'success');
+                await loadData();
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+        
+        async function saveMenu(formData) {
+            try {
+                const menuData = {
+                    menu_code: formData.get('menu_code') || null,
+                    category_id: formData.get('category_id'),
+                    name: formData.get('name'),
+                    name_thai: formData.get('name_thai') || null,
+                    description: formData.get('description') || null,
+                    price: parseFloat(formData.get('price')),
+                    image_url: formData.get('image_url') || null,
+                    is_delivery: formData.has('is_delivery'),
+                    is_available: formData.has('is_available')
+                };
+                
+                let result;
+                if (editingMenu) {
+                    result = await supabase
+                        .from('menus')
+                        .update(menuData)
+                        .eq('id', editingMenu.id);
+                } else {
+                    result = await supabase
+                        .from('menus')
+                        .insert(menuData);
+                }
+                
+                if (result.error) throw result.error;
+                
+                showStatus(`${editingMenu ? 'แก้ไข' : 'เพิ่ม'}เมนูสำเร็จ`, 'success');
+                closeModal();
+                await loadData();
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+        
+        function showAddCategoryModal() {
+            document.getElementById('categoryForm').reset();
+            document.getElementById('categoryModal').style.display = 'flex';
+        }
+        
+        async function saveCategory(formData) {
+            try {
+                const categoryData = {
+                    name: formData.get('name'),
+                    is_active: formData.has('is_active')
+                };
+                
+                const { error } = await supabase
+                    .from('categories')
+                    .insert(categoryData);
+                
+                if (error) throw error;
+                
+                showStatus('เพิ่มหมวดหมู่สำเร็จ', 'success');
+                closeCategoryModal();
+                await loadData();
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+        
+        function filterMenus() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            if (!currentCategory) return;
+            
+            let filteredMenus = menus.filter(menu => menu.category_id === currentCategory.id);
+            
+            if (searchTerm) {
+                filteredMenus = filteredMenus.filter(menu => 
+                    menu.name.toLowerCase().includes(searchTerm) ||
+                    menu.name_thai?.toLowerCase().includes(searchTerm) ||
+                    menu.menu_code?.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            const grid = document.getElementById('menuGrid');
+            grid.innerHTML = filteredMenus.map(menu => `
+                <div class="menu-card">
+                    <div class="menu-code">${menu.menu_code || 'ไม่มีรหัส'}</div>
+                    <div class="menu-name">${menu.name}</div>
+                    <div class="menu-name-thai">${menu.name_thai || ''}</div>
+                    <div class="menu-price">${menu.price} บาท</div>
+                    <div style="margin-bottom: 15px;">
+                        <span style="background: ${menu.is_available ? '#10b981' : '#ef4444'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 5px;">
+                            ${menu.is_available ? 'พร้อมขาย' : 'ไม่พร้อม'}
+                        </span>
+                        <span style="background: ${menu.is_delivery ? '#2563eb' : '#6b7280'}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">
+                            ${menu.is_delivery ? 'จัดส่งได้' : 'ไม่จัดส่ง'}
+                        </span>
+                    </div>
+                    <div class="menu-actions">
+                        <button class="btn btn-warning btn-sm" onclick="editMenu('${menu.id}')">แก้ไข</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteMenu('${menu.id}', '${menu.name}')">ลบ</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function closeModal() {
+            document.getElementById('menuModal').style.display = 'none';
+        }
+        
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').style.display = 'none';
+        }
+        
+        // Event listeners
+        document.getElementById('menuForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('menu_code', document.getElementById('menuCode').value);
+            formData.append('category_id', document.getElementById('menuCategory').value);
+            formData.append('name', document.getElementById('menuName').value);
+            formData.append('name_thai', document.getElementById('menuNameThai').value);
+            formData.append('description', document.getElementById('menuDescription').value);
+            formData.append('price', document.getElementById('menuPrice').value);
+            formData.append('image_url', document.getElementById('menuImage').value);
+            if (document.getElementById('menuDelivery').checked) formData.append('is_delivery', 'true');
+            if (document.getElementById('menuAvailable').checked) formData.append('is_available', 'true');
+            
+            saveMenu(formData);
+        });
+        
+        document.getElementById('categoryForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('name', document.getElementById('categoryName').value);
+            if (document.getElementById('categoryActive').checked) formData.append('is_active', 'true');
+            
+            saveCategory(formData);
+        });
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

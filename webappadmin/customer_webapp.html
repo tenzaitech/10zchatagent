@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenzai Sushi - เมนูออนไลน์</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            color: #212529;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #FF6B35 0%, #e55a2b 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: white;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #FF6B35;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .config-panel {
+            background: #212529;
+            color: white;
+            padding: 15px 20px;
+            display: none;
+        }
+        
+        .config-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 101;
+        }
+        
+        .main-content {
+            display: flex;
+            min-height: calc(100vh - 120px);
+        }
+        
+        .sidebar {
+            width: 280px;
+            background: white;
+            border-right: 1px solid #e9ecef;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+        }
+        
+        .category-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #212529;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .category-item {
+            display: block;
+            padding: 15px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            text-decoration: none;
+            color: #495057;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .category-item:hover {
+            background: #fff3e0;
+            border-color: #FF6B35;
+            transform: translateX(5px);
+            color: #FF6B35;
+        }
+        
+        .category-item.active {
+            background: linear-gradient(135deg, #FF6B35, #e55a2b);
+            color: white;
+            border-color: #FF6B35;
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+        }
+        
+        .menu-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .menu-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #212529;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #FF6B35;
+        }
+        
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .menu-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            border-color: #FF6B35;
+        }
+        
+        .menu-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #ff9a6b, #FF6B35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 40px;
+            position: relative;
+        }
+        
+        .menu-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .menu-info {
+            padding: 20px;
+        }
+        
+        .menu-code {
+            background: #f8f9fa;
+            color: #6c757d;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        
+        .menu-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #212529;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+        
+        .menu-name-thai {
+            color: #6c757d;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .menu-price {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FF6B35;
+            margin-bottom: 15px;
+        }
+        
+        .menu-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .quantity-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f8f9fa;
+            border-radius: 25px;
+            padding: 5px;
+        }
+        
+        .qty-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: #FF6B35;
+            color: white;
+            border-radius: 50%;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .qty-btn:hover {
+            background: #e55a2b;
+            transform: scale(1.1);
+        }
+        
+        .qty-btn:disabled {
+            background: #dee2e6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .qty-display {
+            min-width: 30px;
+            text-align: center;
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .add-to-cart {
+            flex: 1;
+            background: linear-gradient(135deg, #FF6B35, #e55a2b);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .add-to-cart:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+        }
+        
+        .cart-sidebar {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100vh;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+            transition: right 0.3s ease;
+            z-index: 200;
+            overflow-y: auto;
+        }
+        
+        .cart-sidebar.open {
+            right: 0;
+        }
+        
+        .cart-header {
+            background: #FF6B35;
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .cart-content {
+            padding: 20px;
+        }
+        
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .cart-item-info {
+            flex: 1;
+        }
+        
+        .cart-item-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .cart-item-price {
+            color: #FF6B35;
+            font-weight: 600;
+        }
+        
+        .cart-total {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .total-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #FF6B35;
+        }
+        
+        .checkout-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #FF6B35, #e55a2b);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .checkout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
+        }
+        
+        .cart-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: linear-gradient(135deg, #FF6B35, #e55a2b);
+            color: white;
+            border: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.4);
+            transition: all 0.3s;
+            z-index: 150;
+        }
+        
+        .cart-toggle:hover {
+            transform: scale(1.1);
+        }
+        
+        .cart-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-available {
+            background: #28a745;
+        }
+        
+        .status-unavailable {
+            background: #dc3545;
+        }
+        
+        .status-delivery {
+            background: #007bff;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        
+        .empty-state-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            color: #dee2e6;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                padding: 15px;
+                order: 2;
+            }
+            
+            .menu-content {
+                order: 1;
+                padding: 15px;
+            }
+            
+            .menu-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .cart-sidebar {
+                width: 100%;
+                right: -100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">天</div>
+            <h1>Tenzai Sushi</h1>
+            <p>สั่งอาหารออนไลน์ • พร้อมเสิร์ฟ</p>
+        </div>
+        
+        <button class="config-toggle" onclick="toggleConfig()">⚙️</button>
+        
+        <div class="config-panel" id="configPanel">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <input type="text" id="supabaseUrl" placeholder="Supabase URL" style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <input type="password" id="serviceKey" placeholder="Service Key" style="flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                <button onclick="connectDatabase()" style="padding: 8px 16px; background: #FF6B35; color: white; border: none; border-radius: 4px;">เชื่อมต่อ</button>
+            </div>
+        </div>
+        
+        <div id="connectionStatus"></div>
+        
+        <div class="main-content" id="mainContent" style="display: none;">
+            <div class="sidebar">
+                <div class="category-title">
+                    🍣 หมวดหมู่
+                </div>
+                <div id="categoryList"></div>
+            </div>
+            
+            <div class="menu-content">
+                <div class="menu-header">
+                    <div class="menu-title" id="currentCategoryName">เลือกหมวดหมู่</div>
+                </div>
+                
+                <div class="search-box">
+                    <input type="text" class="search-input" id="searchInput" placeholder="ค้นหาเมนู..." onkeyup="filterMenus()">
+                </div>
+                
+                <div class="menu-grid" id="menuGrid">
+                    <div class="loading">กำลังโหลดเมนู...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cart Sidebar -->
+        <div class="cart-sidebar" id="cartSidebar">
+            <div class="cart-header">
+                <h3>🛒 ตะกร้าสินค้า</h3>
+                <button onclick="toggleCart()" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">&times;</button>
+            </div>
+            <div class="cart-content" id="cartContent">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🛒</div>
+                    <p>ตะกร้าว่างเปล่า</p>
+                    <p>เลือกเมนูที่ต้องการ</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Cart Toggle Button -->
+        <button class="cart-toggle" onclick="toggleCart()">
+            🛒
+            <span class="cart-badge" id="cartBadge" style="display: none;">0</span>
+        </button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script>
+        let supabase = null;
+        let categories = [];
+        let menus = [];
+        let currentCategory = null;
+        let cart = [];
+        
+        function toggleConfig() {
+            const panel = document.getElementById('configPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        async function connectDatabase() {
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('serviceKey').value;
+            
+            if (!url || !key) {
+                showStatus('กรุณาใส่ Supabase URL และ Service Key', 'error');
+                return;
+            }
+            
+            try {
+                supabase = window.supabase.createClient(url, key);
+                
+                const { data, error } = await supabase.from('categories').select('count');
+                
+                if (error) {
+                    showStatus(`การเชื่อมต่อล้มเหลว: ${error.message}`, 'error');
+                    return;
+                }
+                
+                showStatus('เชื่อมต่อสำเร็จ! กำลังโหลดข้อมูล...', 'success');
+                document.getElementById('mainContent').style.display = 'flex';
+                document.getElementById('configPanel').style.display = 'none';
+                
+                await loadData();
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('connectionStatus');
+            const className = type === 'error' ? 'error' : 'success';
+            statusDiv.innerHTML = `<div class="${className}" style="margin: 20px; padding: 15px; border-radius: 8px;">${message}</div>`;
+            
+            if (type === 'success') {
+                setTimeout(() => statusDiv.innerHTML = '', 3000);
+            }
+        }
+        
+        async function loadData() {
+            try {
+                // Load categories
+                const { data: categoriesData, error: catError } = await supabase
+                    .from('categories')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('name');
+                
+                if (catError) throw catError;
+                
+                categories = categoriesData;
+                renderCategories();
+                
+                // Load all menus
+                const { data: menusData, error: menuError } = await supabase
+                    .from('menus')
+                    .select(`
+                        *,
+                        categories (name)
+                    `)
+                    .eq('is_available', true)
+                    .order('name');
+                
+                if (menuError) throw menuError;
+                
+                menus = menusData;
+                
+                // Select first category
+                if (categories.length > 0) {
+                    selectCategory(categories[0]);
+                }
+                
+            } catch (error) {
+                showStatus(`เกิดข้อผิดพลาดในการโหลดข้อมูล: ${error.message}`, 'error');
+            }
+        }
+        
+        function renderCategories() {
+            const list = document.getElementById('categoryList');
+            list.innerHTML = categories.map(cat => `
+                <div class="category-item" onclick="selectCategory(${JSON.stringify(cat).replace(/"/g, '&quot;')})">
+                    ${cat.name}
+                </div>
+            `).join('');
+        }
+        
+        function selectCategory(category) {
+            currentCategory = category;
+            
+            // Update UI
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            event?.target?.classList.add('active');
+            
+            document.getElementById('currentCategoryName').textContent = category.name;
+            
+            renderMenus();
+        }
+        
+        function renderMenus() {
+            if (!currentCategory) return;
+            
+            const categoryMenus = menus.filter(menu => menu.category_id === currentCategory.id);
+            const grid = document.getElementById('menuGrid');
+            
+            if (categoryMenus.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🍽️</div>
+                        <p>ไม่มีเมนูในหมวดหมู่นี้</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = categoryMenus.map(menu => `
+                <div class="menu-card">
+                    <div class="menu-image">
+                        ${menu.image_url ? `<img src="${menu.image_url}" alt="${menu.name}">` : '🍣'}
+                    </div>
+                    <div class="menu-info">
+                        ${menu.menu_code ? `<div class="menu-code">${menu.menu_code}</div>` : ''}
+                        <div class="menu-name">${menu.name}</div>
+                        <div class="menu-name-thai">${menu.name_thai || ''}</div>
+                        <div class="menu-price">${menu.price} บาท</div>
+                        <div class="status-indicator">
+                            <span class="status-dot status-available"></span>
+                            <span>พร้อมเสิร์ฟ</span>
+                            ${menu.is_delivery ? '<span class="status-dot status-delivery"></span><span>จัดส่งได้</span>' : ''}
+                        </div>
+                        <div class="menu-actions">
+                            <div class="quantity-control">
+                                <button class="qty-btn" onclick="changeQuantity('${menu.id}', -1)">-</button>
+                                <span class="qty-display" id="qty-${menu.id}">0</span>
+                                <button class="qty-btn" onclick="changeQuantity('${menu.id}', 1)">+</button>
+                            </div>
+                            <button class="add-to-cart" onclick="addToCart('${menu.id}')">เพิ่มในตะกร้า</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function changeQuantity(menuId, change) {
+            const qtyElement = document.getElementById(`qty-${menuId}`);
+            let currentQty = parseInt(qtyElement.textContent);
+            currentQty = Math.max(0, currentQty + change);
+            qtyElement.textContent = currentQty;
+        }
+        
+        function addToCart(menuId) {
+            const qtyElement = document.getElementById(`qty-${menuId}`);
+            const quantity = parseInt(qtyElement.textContent);
+            
+            if (quantity === 0) {
+                alert('กรุณาเลือกจำนวน');
+                return;
+            }
+            
+            const menu = menus.find(m => m.id === menuId);
+            if (!menu) return;
+            
+            const existingItem = cart.find(item => item.menu_id === menuId);
+            
+            if (existingItem) {
+                existingItem.quantity += quantity;
+            } else {
+                cart.push({
+                    menu_id: menuId,
+                    name: menu.name,
+                    name_thai: menu.name_thai,
+                    price: menu.price,
+                    quantity: quantity
+                });
+            }
+            
+            // Reset quantity
+            qtyElement.textContent = '0';
+            
+            updateCartUI();
+            
+            // Show feedback
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = 'เพิ่มแล้ว ✓';
+            button.style.background = '#28a745';
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.background = '';
+            }, 1000);
+        }
+        
+        function removeFromCart(menuId) {
+            cart = cart.filter(item => item.menu_id !== menuId);
+            updateCartUI();
+        }
+        
+        function updateCartQuantity(menuId, newQuantity) {
+            const item = cart.find(item => item.menu_id === menuId);
+            if (item) {
+                if (newQuantity <= 0) {
+                    removeFromCart(menuId);
+                } else {
+                    item.quantity = newQuantity;
+                    updateCartUI();
+                }
+            }
+        }
+        
+        function updateCartUI() {
+            const cartContent = document.getElementById('cartContent');
+            const cartBadge = document.getElementById('cartBadge');
+            
+            const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+            const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            if (totalItems > 0) {
+                cartBadge.textContent = totalItems;
+                cartBadge.style.display = 'flex';
+            } else {
+                cartBadge.style.display = 'none';
+            }
+            
+            if (cart.length === 0) {
+                cartContent.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🛒</div>
+                        <p>ตะกร้าว่างเปล่า</p>
+                        <p>เลือกเมนูที่ต้องการ</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            cartContent.innerHTML = `
+                ${cart.map(item => `
+                    <div class="cart-item">
+                        <div class="cart-item-info">
+                            <div class="cart-item-name">${item.name}</div>
+                            <div class="cart-item-price">${item.price} บาท x ${item.quantity}</div>
+                        </div>
+                        <div class="quantity-control">
+                            <button class="qty-btn" onclick="updateCartQuantity('${item.menu_id}', ${item.quantity - 1})">-</button>
+                            <span class="qty-display">${item.quantity}</span>
+                            <button class="qty-btn" onclick="updateCartQuantity('${item.menu_id}', ${item.quantity + 1})">+</button>
+                        </div>
+                    </div>
+                `).join('')}
+                
+                <div class="cart-total">
+                    <div>ยอดรวม</div>
+                    <div class="total-amount">${totalAmount.toFixed(2)} บาท</div>
+                </div>
+                
+                <button class="checkout-btn" onclick="checkout()">
+                    ยืนยันสั่งอาหาร (${totalItems} รายการ)
+                </button>
+            `;
+        }
+        
+        function toggleCart() {
+            const cartSidebar = document.getElementById('cartSidebar');
+            cartSidebar.classList.toggle('open');
+        }
+        
+        function filterMenus() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            if (!currentCategory) return;
+            
+            let filteredMenus = menus.filter(menu => menu.category_id === currentCategory.id);
+            
+            if (searchTerm) {
+                filteredMenus = filteredMenus.filter(menu => 
+                    menu.name.toLowerCase().includes(searchTerm) ||
+                    menu.name_thai?.toLowerCase().includes(searchTerm) ||
+                    menu.menu_code?.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            const grid = document.getElementById('menuGrid');
+            grid.innerHTML = filteredMenus.map(menu => `
+                <div class="menu-card">
+                    <div class="menu-image">
+                        ${menu.image_url ? `<img src="${menu.image_url}" alt="${menu.name}">` : '🍣'}
+                    </div>
+                    <div class="menu-info">
+                        ${menu.menu_code ? `<div class="menu-code">${menu.menu_code}</div>` : ''}
+                        <div class="menu-name">${menu.name}</div>
+                        <div class="menu-name-thai">${menu.name_thai || ''}</div>
+                        <div class="menu-price">${menu.price} บาท</div>
+                        <div class="status-indicator">
+                            <span class="status-dot status-available"></span>
+                            <span>พร้อมเสิร์ฟ</span>
+                            ${menu.is_delivery ? '<span class="status-dot status-delivery"></span><span>จัดส่งได้</span>' : ''}
+                        </div>
+                        <div class="menu-actions">
+                            <div class="quantity-control">
+                                <button class="qty-btn" onclick="changeQuantity('${menu.id}', -1)">-</button>
+                                <span class="qty-display" id="qty-${menu.id}">0</span>
+                                <button class="qty-btn" onclick="changeQuantity('${menu.id}', 1)">+</button>
+                            </div>
+                            <button class="add-to-cart" onclick="addToCart('${menu.id}')">เพิ่มในตะกร้า</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function checkout() {
+            if (cart.length === 0) return;
+            
+            const customerName = prompt('กรุณาใส่ชื่อ:');
+            if (!customerName) return;
+            
+            const customerPhone = prompt('กรุณาใส่เบอร์โทร:');
+            if (!customerPhone) return;
+            
+            const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            // สร้าง order summary
+            const orderSummary = {
+                customer_name: customerName,
+                customer_phone: customerPhone,
+                items: cart,
+                total_amount: totalAmount,
+                order_time: new Date().toISOString()
+            };
+            
+            alert(`สั่งอาหารสำเร็จ!\n\nชื่อ: ${customerName}\nเบอร์: ${customerPhone}\nยอดรวม: ${totalAmount} บาท\n\nจะมีพนักงานติดต่อกลับเร็วๆ นี้`);
+            
+            // Clear cart
+            cart = [];
+            updateCartUI();
+            toggleCart();
+            
+            console.log('Order Summary:', orderSummary);
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-connect if URL params are provided
+            const urlParams = new URLSearchParams(window.location.search);
+            const url = urlParams.get('url');
+            const key = urlParams.get('key');
+            
+            if (url && key) {
+                document.getElementById('supabaseUrl').value = url;
+                document.getElementById('serviceKey').value = key;
+                connectDatabase();
+            }
+        });
+    </script>
+</body>
+</html>
