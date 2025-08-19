@@ -1,0 +1,10 @@
+version: "2"
+authtoken: 2yTjQNuKS08A117LzkLt2hlMndn_5j3EPsM6C59BMwNJmLfhD
+
+tunnels:
+  tenzai-api:
+    proto: http
+    addr: 8000
+    hostname: tenzai.ngrok.io
+    inspect: true
+    bind_tls: true

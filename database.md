@@ -9,13 +9,13 @@
 ## ERD (ASCII – Minimal)
 ```
 categories (id PK, name)
-menus (id PK, category_id FK→categories.id, name, price, is_active)
+menus (id PK, category_id FK→categories.id, name, price, is_available)
 system_settings (key PK, value)
 
-customers (id PK, line_user_id?, psid?, name?, phone?)
-orders (id PK, customer_id FK→customers.id, status, source, channel, total_price, created_at)
-order_items (id PK, order_id FK→orders.id, menu_id FK→menus.id, qty, price)
-conversations (id PK, customer_id?, channel, last_user_message, summary, created_at)
+customers (id PK, line_user_id, display_name?, phone?, email?, address?)
+orders (id PK, customer_id FK→customers.id, order_number, customer_name, status, total_amount, created_at)
+order_items (id PK, order_id FK→orders.id, menu_id FK→menus.id, menu_name, quantity, unit_price, total_price)
+conversations (id PK, line_user_id, message_text, response_text, created_at)
 ```
 > **สัญญา:**  
 > - **Public SELECT only:** `categories`, `menus`, `system_settings`  
@@ -23,15 +23,15 @@ conversations (id PK, customer_id?, channel, last_user_message, summary, created
 
 ## Columns (Minimal Reference)
 - `orders.status`: `'pending'|'confirmed'|'rejected'|'preparing'|'done'`  
-- `orders.source`: `'web'|'chat'`  
-- `orders.channel`: `'line'|'fb'|'ig'`  
+- `orders.order_type`: `'pickup'|'delivery'`  
+- `orders.payment_method`: `'qr_code'|'cash'|'transfer'`  
 - Index แนะนำ: `menus(category_id)`, `orders(created_at desc)`, `order_items(order_id)`
 
 ## RLS Policy Model (Concise)
 - Public tables (`categories`, `menus`, `system_settings`): **enable RLS** + policy `SELECT to anon using (true)`  
 - Write tables (`orders`, `order_items`, `customers`, `conversations`): **enable RLS** + **no anon policy** (write ผ่าน service role เท่านั้น)
 
-**TODO:** ใส่ชื่อโปรเจกต์/URL ของ Supabase (ไม่ใส่คีย์จริง)
+**Project:** qlhpmrehrmprptldtchb - https://qlhpmrehrmprptldtchb.supabase.co
 
 ## REST (PostgREST) – Contracts
 ### 1) Public SELECT (client → Supabase)
@@ -40,11 +40,15 @@ GET /rest/v1/categories
 apikey: <ANON_KEY>
 ```
 ```http
-GET /rest/v1/menus?select=id,name,price,category_id&is_active=eq.true
+GET /rest/v1/menus?select=id,name,price,category_id&is_available=eq.true
 apikey: <ANON_KEY>
 ```
 ```http
 GET /rest/v1/system_settings?select=key,value
+apikey: <ANON_KEY>
+```
+```http
+GET /rest/v1/menus?select=id,name,price&category_id=eq.2&is_available=eq.true&order=name.asc
 apikey: <ANON_KEY>
 ```
 
@@ -55,7 +59,7 @@ apikey: <SERVICE_ROLE>
 Authorization: Bearer <SERVICE_ROLE>
 Content-Type: application/json
 
-{ "line_user_id": "Uxxxx", "name": "Somchai", "phone": "08x-xxx-xxxx" }
+{ "line_user_id": "Uxxxx", "display_name": "Somchai", "phone": "08x-xxx-xxxx" }
 ```
 
 ```http
@@ -66,10 +70,10 @@ Content-Type: application/json
 
 {
   "customer_id": 123,
+  "order_number": "T001",
+  "customer_name": "Somchai",
   "status": "pending",
-  "source": "web",
-  "channel": "line",
-  "total_price": 1234
+  "total_amount": 1234
 }
 ```
 
@@ -81,20 +85,20 @@ Prefer: return=representation
 Content-Type: application/json
 
 [
-  { "order_id": 456, "menu_id": 1, "qty": 2, "price": 89 },
-  { "order_id": 456, "menu_id": 45, "qty": 1, "price": 199 }
+  { "order_id": 456, "menu_id": 1, "menu_name": "SALMON SUSHI", "quantity": 2, "unit_price": 15, "total_price": 30 },
+  { "order_id": 456, "menu_id": 45, "menu_name": "WAGYU STEAK", "quantity": 1, "unit_price": 350, "total_price": 350 }
 ]
 ```
 
 ## Data Validation (n8n Responsibilities)
 - Re-price: คำนวนจาก `menus.price` ล่าสุดเสมอก่อนสร้าง order  
-- Enforce: `qty >= 1`, `is_active = true` เฉพาะเมนูที่ขาย  
+- Enforce: `quantity >= 1`, `is_available = true` เฉพาะเมนูที่ขาย  
 - Anti-tamper: ห้ามรับราคา/ชื่อเมนูจาก client มาใช้ตรง ๆ
 
 ## Size & Retention (Free Plan)
-- `conversations.summary` จำกัด ~300–600 ตัวอักษร  
+- `conversations.message_text/response_text` จำกัด ~300–600 ตัวอักษร  
 - พิจารณา purge logs/old conversations รายเดือน
-- เก็บรูป/ไฟล์สลิปชั่วคราวนอก DB (ถ้าใช้) – **TODO:** ตัดสินใจ storage
+- เก็บรูป/ไฟล์สลิปชั่วคราวนอก DB → ใช้ **Supabase Storage** (bucket: receipts, public read-only, auto-delete 7 วัน)
 
 ## Env & Secrets (Names Only)
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`  
@@ -103,3 +107,4 @@ Content-Type: application/json
 ## Guardrails
 - **Do:** ระบุเฉพาะสัญญา/คอนแทร็ก, ตัวอย่างสั้น  
 - **Don’t:** เปิดการเขียนผ่าน anon, บรรยายการ deploy/lifecycle เกินความจำเป็น
+

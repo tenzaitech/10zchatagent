@@ -1,0 +1,448 @@
+{
+  "name": "WF-B: Order Processing (v2 - Fixed forEach Error)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orders/create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node",
+      "name": "Webhook - Order Create",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Order Input Validation\nconst body = $input.first().json.body;\n\n// Required fields validation\nconst requiredFields = ['channel', 'source', 'cart', 'contact'];\nconst missingFields = requiredFields.filter(field => !body[field]);\n\nif (missingFields.length > 0) {\n  return [{\n    json: {\n      error: \"Missing required fields\",\n      missingFields: missingFields,\n      shouldReject: true,\n      statusCode: 400\n    }\n  }];\n}\n\n// Validate cart\nif (!Array.isArray(body.cart) || body.cart.length === 0) {\n  return [{\n    json: {\n      error: \"EMPTY_CART\",\n      message: \"ไม่มีรายการอาหารในตะกร้า\",\n      shouldReject: true,\n      statusCode: 400\n    }\n  }];\n}\n\n// Validate cart items\nfor (let i = 0; i < body.cart.length; i++) {\n  const item = body.cart[i];\n  if (!item.menu_id || !item.qty || item.qty < 1) {\n    return [{\n      json: {\n        error: \"Invalid cart item\",\n        message: `รายการที่ ${i+1} ไม่ถูกต้อง`,\n        shouldReject: true,\n        statusCode: 400\n      }\n    }];\n  }\n}\n\n// Validate contact info\nif (!body.contact.name || !body.contact.phone) {\n  return [{\n    json: {\n      error: \"Missing contact info\",\n      message: \"กรุณากรอกชื่อและเบอร์โทรศัพท์\",\n      shouldReject: true,\n      statusCode: 400\n    }\n  }];\n}\n\n// All validations passed\nreturn [{\n  json: {\n    orderData: body,\n    channel: body.channel,\n    source: body.source,\n    cart: body.cart,\n    contact: body.contact,\n    userRef: body.user_ref || {},\n    shouldReject: false,\n    validatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "validate-node",
+      "name": "Validate Order Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-reject",
+              "leftValue": "={{ $json.shouldReject }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validation-check",
+      "name": "Validation Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"error\", \"error\": $json.error, \"message\": $json.message || \"Invalid request\" } }}",
+        "responseCode": "={{ $json.statusCode || 400 }}"
+      },
+      "id": "reject-node",
+      "name": "Reject Order",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 500]
+    },
+    {
+      "parameters": {
+        "url": "https://qlhpmrehrmprptldtchb.supabase.co/rest/v1/menus",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzMzcwNDIsImV4cCI6MjA2OTkxMzA0Mn0.SnTR2caXeCiQY_de6PEk1Dc0TVS9fP1s9qym_WbE114"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzMzcwNDIsImV4cCI6MjA2OTkxMzA0Mn0.SnTR2caXeCiQY_de6PEk1Dc0TVS9fP1s9qym_WbE114"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "id,name,price,is_available"
+            },
+            {
+              "name": "is_available",
+              "value": "eq.true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-menus",
+      "name": "Get Menu Prices",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Re-calculate Order Total (Fixed forEach error)\nconst cart = $('Validate Order Input').first().json.cart;\nconst menuResponse = $input.first().json;\n\n// Handle different response formats\nlet menuData = [];\nif (Array.isArray(menuResponse)) {\n  menuData = menuResponse;\n} else if (menuResponse && Array.isArray(menuResponse.data)) {\n  menuData = menuResponse.data;\n} else if (menuResponse && menuResponse.json && Array.isArray(menuResponse.json)) {\n  menuData = menuResponse.json;\n} else {\n  console.log('Unexpected menu response format:', menuResponse);\n  return [{\n    json: {\n      error: \"MENU_FETCH_ERROR\",\n      message: \"ไม่สามารถดึงข้อมูลเมนูได้\",\n      shouldReject: true,\n      statusCode: 500\n    }\n  }];\n}\n\n// Create menu price lookup\nconst menuPrices = {};\nfor (const menu of menuData) {\n  menuPrices[menu.id] = {\n    name: menu.name,\n    price: parseFloat(menu.price),\n    is_available: menu.is_available\n  };\n}\n\nlet calculatedTotal = 0;\nconst validatedItems = [];\nconst errors = [];\n\n// Validate each cart item\nfor (const item of cart) {\n  const menuInfo = menuPrices[item.menu_id];\n  \n  if (!menuInfo) {\n    errors.push(`เมนู ID ${item.menu_id} ไม่พบในระบบ`);\n    continue;\n  }\n  \n  if (!menuInfo.is_available) {\n    errors.push(`${menuInfo.name} ไม่สามารถสั่งได้ในขณะนี้`);\n    continue;\n  }\n  \n  const itemTotal = menuInfo.price * item.qty;\n  calculatedTotal += itemTotal;\n  \n  validatedItems.push({\n    menu_id: item.menu_id,\n    menu_name: menuInfo.name,\n    qty: item.qty,\n    unit_price: menuInfo.price,\n    item_total: itemTotal,\n    note: item.note || null\n  });\n}\n\nif (errors.length > 0) {\n  return [{\n    json: {\n      error: \"INVALID_ITEMS\",\n      message: errors.join(', '),\n      errors: errors,\n      shouldReject: true,\n      statusCode: 400\n    }\n  }];\n}\n\nif (validatedItems.length === 0) {\n  return [{\n    json: {\n      error: \"EMPTY_VALID_CART\",\n      message: \"ไม่มีรายการที่สามารถสั่งได้\",\n      shouldReject: true,\n      statusCode: 400\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    validatedItems: validatedItems,\n    calculatedTotal: calculatedTotal,\n    originalData: $('Validate Order Input').first().json,\n    shouldReject: false,\n    priceValidatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "recalc-prices",
+      "name": "Re-calculate Prices",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "price-error",
+              "leftValue": "={{ $json.shouldReject }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "price-check",
+      "name": "Price Validation Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://qlhpmrehrmprptldtchb.supabase.co/rest/v1/customers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDMzNzA0MiwiZXhwIjoyMDY5OTEzMDQyfQ.foCnBLUA6SOXHPBKuBJaKu2A1CPUeetMTjXWSbBkObU"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDMzNzA0MiwiZXhwIjoyMDY5OTEzMDQyfQ.foCnBLUA6SOXHPBKuBJaKu2A1CPUeetMTjXWSbBkObU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "line_user_id",
+              "value": "={{ $('Validate Order Input').first().json.userRef.line_user_id || null }}"
+            },
+            {
+              "name": "display_name",
+              "value": "={{ $('Validate Order Input').first().json.contact.name }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $('Validate Order Input').first().json.contact.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "upsert-customer",
+      "name": "Upsert Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 100]
+    },
+    {
+      "parameters": {
+        "url": "https://qlhpmrehrmprptldtchb.supabase.co/rest/v1/orders",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDMzNzA0MiwiZXhwIjoyMDY5OTEzMDQyfQ.foCnBLUA6SOXHPBKuBJaKu2A1CPUeetMTjXWSbBkObU"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDMzNzA0MiwiZXhwIjoyMDY5OTEzMDQyfQ.foCnBLUA6SOXHPBKuBJaKu2A1CPUeetMTjXWSbBkObU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "customer_id",
+              "value": "={{ $('Upsert Customer').first().json[0].id }}"
+            },
+            {
+              "name": "customer_name",
+              "value": "={{ $('Validate Order Input').first().json.contact.name }}"
+            },
+            {
+              "name": "customer_phone",
+              "value": "={{ $('Validate Order Input').first().json.contact.phone }}"
+            },
+            {
+              "name": "status",
+              "value": "pending"
+            },
+            {
+              "name": "order_type",
+              "value": "pickup"
+            },
+            {
+              "name": "total_amount",
+              "value": "={{ $('Re-calculate Prices').first().json.calculatedTotal }}"
+            },
+            {
+              "name": "payment_method",
+              "value": "qr_code"
+            },
+            {
+              "name": "payment_status",
+              "value": "unpaid"
+            },
+            {
+              "name": "order_number",
+              "value": "={{ 'WEB' + Date.now().toString().slice(-6) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-order",
+      "name": "Create Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Order Items for Bulk Insert\nconst orderId = $('Create Order').first().json[0].id;\nconst validatedItems = $('Re-calculate Prices').first().json.validatedItems;\n\n// Format items for Supabase bulk insert\nconst orderItems = validatedItems.map(item => ({\n  order_id: orderId,\n  menu_id: item.menu_id,\n  menu_name: item.menu_name,\n  quantity: item.qty,\n  unit_price: item.unit_price,\n  total_price: item.item_total\n}));\n\nreturn [{\n  json: {\n    orderItems: orderItems,\n    orderId: orderId,\n    itemCount: orderItems.length\n  }\n}];"
+      },
+      "id": "prepare-items",
+      "name": "Prepare Order Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://qlhpmrehrmprptldtchb.supabase.co/rest/v1/order_items",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDMzNzA0MiwiZXhwIjoyMDY5OTEzMDQyfQ.foCnBLUA6SOXHPBKuBJaKu2A1CPUeetMTjXWSbBkObU"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDMzNzA0MiwiZXhwIjoyMDY5OTEzMDQyfQ.foCnBLUA6SOXHPBKuBJaKu2A1CPUeetMTjXWSbBkObU"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify($json.orderItems) }}",
+        "options": {}
+      },
+      "id": "insert-items",
+      "name": "Insert Order Items",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"order_id\": $('Create Order').first().json[0].id, \"order_number\": $('Create Order').first().json[0].order_number, \"total_price\": $('Re-calculate Prices').first().json.calculatedTotal, \"items_count\": $('Prepare Order Items').first().json.itemCount, \"message\": \"สั่งอาหารเรียบร้อยแล้ว รอการยืนยันจากร้านค่ะ\" } }}"
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2220, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Order Create": {
+      "main": [
+        [
+          {
+            "node": "Validate Order Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Order Input": {
+      "main": [
+        [
+          {
+            "node": "Validation Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Check": {
+      "main": [
+        [
+          {
+            "node": "Reject Order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Menu Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Menu Prices": {
+      "main": [
+        [
+          {
+            "node": "Re-calculate Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-calculate Prices": {
+      "main": [
+        [
+          {
+            "node": "Price Validation Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Price Validation Check": {
+      "main": [
+        [
+          {
+            "node": "Reject Order",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Customer",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Order": {
+      "main": [
+        [
+          {
+            "node": "Prepare Order Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Order Items": {
+      "main": [
+        [
+          {
+            "node": "Insert Order Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Order Items": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-08-19T06:25:00.000Z",
+  "versionId": "4"
+}

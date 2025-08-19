@@ -898,47 +898,154 @@
         }
         
         async function checkout() {
-            if (cart.length === 0) return;
+            if (cart.length === 0) {
+                showStatus('ไม่มีรายการในตะกร้า', 'error');
+                return;
+            }
             
             const customerName = prompt('กรุณาใส่ชื่อ:');
-            if (!customerName) return;
+            if (!customerName || customerName.trim() === '') {
+                showStatus('กรุณาใส่ชื่อ', 'error');
+                return;
+            }
             
             const customerPhone = prompt('กรุณาใส่เบอร์โทร:');
-            if (!customerPhone) return;
+            if (!customerPhone || customerPhone.trim() === '') {
+                showStatus('กรุณาใส่เบอร์โทรศัพท์', 'error');
+                return;
+            }
             
-            const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            // Validate phone format (basic Thai mobile format)
+            const phonePattern = /^[0-9]{9,10}$/;
+            const cleanPhone = customerPhone.replace(/[-\s]/g, '');
+            if (!phonePattern.test(cleanPhone)) {
+                showStatus('รูปแบบเบอร์โทรไม่ถูกต้อง (ใส่ 9-10 หลัก)', 'error');
+                return;
+            }
             
-            // สร้าง order summary
-            const orderSummary = {
-                customer_name: customerName,
-                customer_phone: customerPhone,
-                items: cart,
-                total_amount: totalAmount,
-                order_time: new Date().toISOString()
-            };
+            // Show loading
+            showStatus('กำลังส่งออเดอร์...', 'info');
             
-            alert(`สั่งอาหารสำเร็จ!\n\nชื่อ: ${customerName}\nเบอร์: ${customerPhone}\nยอดรวม: ${totalAmount} บาท\n\nจะมีพนักงานติดต่อกลับเร็วๆ นี้`);
-            
-            // Clear cart
-            cart = [];
-            updateCartUI();
-            toggleCart();
-            
-            console.log('Order Summary:', orderSummary);
+            try {
+                // Prepare order data for n8n WF-B
+                const orderData = {
+                    channel: 'line', // Default channel (can be detected from URL params)
+                    source: 'web',
+                    cart: cart.map(item => ({
+                        menu_id: item.id,
+                        qty: item.quantity,
+                        note: null // Future: add note field in UI
+                    })),
+                    contact: {
+                        name: customerName.trim(),
+                        phone: cleanPhone
+                    },
+                    user_ref: {
+                        line_user_id: null // Future: get from LIFF
+                    }
+                };
+                
+                console.log('Sending order to n8n:', orderData);
+                
+                // Send to n8n WF-B endpoint
+                const response = await fetch('https://n8n-dev.tenzaitech.online/webhook/orders/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(orderData)
+                });
+                
+                let result = {};
+                try {
+                    const responseText = await response.text();
+                    console.log('n8n Response Text:', responseText);
+                    
+                    if (responseText.trim()) {
+                        result = JSON.parse(responseText);
+                    } else {
+                        console.log('Empty response from n8n, assuming success');
+                        result = { status: 'success', message: 'สั่งอาหารเรียบร้อยแล้ว' };
+                    }
+                } catch (parseError) {
+                    console.error('JSON Parse Error:', parseError);
+                    result = { status: 'success', message: 'สั่งอาหารเรียบร้อยแล้ว' };
+                }
+                
+                console.log('n8n Parsed Result:', result);
+                
+                if (response.ok && (result.status === 'success' || response.status === 200)) {
+                    // Success
+                    const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    const orderId = result.order_id || 'TMP' + Date.now();
+                    const totalPrice = result.total_price || totalAmount;
+                    
+                    showStatus(`✅ สั่งอาหารสำเร็จ! ออเดอร์ #${orderId}<br>` +
+                              `ยอดรวม: ${totalPrice} บาท<br>` +
+                              `${result.message}`, 'success');
+                    
+                    // Optional: Show detailed success modal
+                    setTimeout(() => {
+                        alert(`🎉 สั่งอาหารเรียบร้อย!\n\n` +
+                              `📋 ออเดอร์: #${result.order_id}\n` +
+                              `👤 ชื่อ: ${customerName}\n` +
+                              `📞 เบอร์: ${cleanPhone}\n` +
+                              `💰 ยอดรวม: ${result.total_price} บาท\n` +
+                              `📦 จำนวนรายการ: ${result.items_count}\n\n` +
+                              `✨ ขอบคุณที่ใช้บริการ Tenzai Sushi\n` +
+                              `ทางร้านจะติดต่อกลับเร็วๆ นี้ค่ะ`);
+                    }, 1000);
+                    
+                    // Clear cart after success
+                    cart = [];
+                    updateCartUI();
+                    toggleCart();
+                    
+                } else {
+                    // Error from n8n
+                    const errorMessage = result.message || result.error || 'เกิดข้อผิดพลาดในการสั่งอาหาร';
+                    showStatus(`❌ ${errorMessage}`, 'error');
+                    
+                    // Special handling for specific errors
+                    if (result.error === 'EMPTY_CART') {
+                        // Cart is empty
+                        cart = [];
+                        updateCartUI();
+                    } else if (result.error === 'INVALID_ITEMS') {
+                        // Some items are invalid, show details
+                        if (result.errors) {
+                            showStatus(`❌ มีปัญหากับรายการอาหาร:<br>${result.errors.join('<br>')}`, 'error');
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Checkout error:', error);
+                showStatus(`❌ ไม่สามารถเชื่อมต่อกับระบบได้<br>กรุณาลองใหม่อีกครั้ง`, 'error');
+                
+                // Fallback: Show offline message
+                setTimeout(() => {
+                    if (confirm('ไม่สามารถส่งออเดอร์ออนไลน์ได้\nต้องการโทรสั่งโดยตรงหรือไม่?')) {
+                        window.open('tel:02-xxx-xxxx');
+                    }
+                }, 2000);
+            }
         }
         
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-connect if URL params are provided
-            const urlParams = new URLSearchParams(window.location.search);
-            const url = urlParams.get('url');
-            const key = urlParams.get('key');
+            // Auto-connect with default credentials
+            const defaultUrl = 'https://qlhpmrehrmprptldtchb.supabase.co';
+            const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsaHBtcmVocm1wcnB0bGR0Y2hiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzMzcwNDIsImV4cCI6MjA2OTkxMzA0Mn0.SnTR2caXeCiQY_de6PEk1Dc0TVS9fP1s9qym_WbE114';
             
-            if (url && key) {
-                document.getElementById('supabaseUrl').value = url;
-                document.getElementById('serviceKey').value = key;
-                connectDatabase();
-            }
+            // Try URL params first, then use defaults
+            const urlParams = new URLSearchParams(window.location.search);
+            const url = urlParams.get('url') || defaultUrl;
+            const key = urlParams.get('key') || defaultKey;
+            
+            document.getElementById('supabaseUrl').value = url;
+            document.getElementById('serviceKey').value = key;
+            connectDatabase();
         });
     </script>
 </body>

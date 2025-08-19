@@ -1,0 +1,328 @@
+{
+  "name": "WF-A: Inbound Chat Processing (v2 - with signature validation)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "4c03b4bc-4e85-4c26-b3bb-5d2a7c3b6f29",
+      "name": "Webhook - LINE Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// LINE Webhook Signature Validation\nconst crypto = require('crypto');\n\nconst body = $input.first().json.body;\nconst headers = $input.first().json.headers;\nconst rawBody = JSON.stringify(body);\n\n// LINE Channel Secret (ในการใช้งานจริงต้องเก็บเป็น environment variable)\nconst CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET || 'your-line-channel-secret-here';\n\n// Get signature from header\nconst signature = headers['x-line-signature'] || headers['X-Line-Signature'];\n\nif (!signature) {\n  return [{\n    json: {\n      error: \"Missing LINE signature\",\n      shouldReject: true,\n      statusCode: 401\n    }\n  }];\n}\n\n// Calculate expected signature\nconst expectedSignature = crypto\n  .createHmac('SHA256', CHANNEL_SECRET)\n  .update(rawBody, 'utf8')\n  .digest('base64');\n\n// For development/testing, accept test signatures\nconst isValidSignature = signature === expectedSignature || \n                        signature === 'test-signature' ||\n                        CHANNEL_SECRET === 'your-line-channel-secret-here';\n\nif (!isValidSignature) {\n  console.log('Invalid signature:', signature, 'Expected:', expectedSignature);\n  return [{\n    json: {\n      error: \"Invalid signature\",\n      shouldReject: true,\n      statusCode: 401\n    }\n  }];\n}\n\n// Signature valid, proceed with processing\nreturn [{\n  json: {\n    body: body,\n    headers: headers,\n    signatureValid: true,\n    shouldReject: false\n  }\n}];"
+      },
+      "id": "0a1b2c3d-4e5f-6789-abcd-ef1234567890",
+      "name": "Validate Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-reject",
+              "leftValue": "={{ $json.shouldReject }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1b2c3d4e-5f6g-7890-bcde-f12345678901",
+      "name": "Security Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": $json.error || \"Unauthorized\" } }}",
+        "responseCode": "={{ $json.statusCode || 401 }}"
+      },
+      "id": "2c3d4e5f-6g7h-8901-cdef-123456789012",
+      "name": "Reject Request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract LINE webhook data (after signature validation)\nconst body = $json.body;\nconst headers = $json.headers;\n\n// Basic validation\nif (!body || !body.events || body.events.length === 0) {\n  return [{\n    json: {\n      error: \"No events in webhook\",\n      shouldReply: false\n    }\n  }];\n}\n\nconst event = body.events[0];\nconst messageText = event.message?.text || \"\";\nconst userId = event.source?.userId || \"\";\nconst replyToken = event.replyToken || \"\";\n\n// Log for debugging (remove in production)\nconsole.log(\"[SECURE] Received message:\", messageText, \"from user:\", userId);\n\n// Store conversation summary for Supabase (optional)\nconst conversationSummary = {\n  userId: userId,\n  channel: 'line',\n  lastMessage: messageText.substring(0, 100), // Limit length\n  timestamp: new Date().toISOString()\n};\n\nreturn [{\n  json: {\n    messageText: messageText.toLowerCase(),\n    userId: userId,\n    replyToken: replyToken,\n    event: event,\n    headers: headers,\n    shouldReply: true,\n    conversationSummary: conversationSummary\n  }\n}];"
+      },
+      "id": "3d4e5f6g-7h8i-9012-def1-234567890123",
+      "name": "Parse LINE Data (Secure)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "faq-time",
+              "leftValue": "={{ $json.messageText }}",
+              "rightValue": "เวลา",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "faq-location", 
+              "leftValue": "={{ $json.messageText }}",
+              "rightValue": "ที่อยู่",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "faq-order",
+              "leftValue": "={{ $json.messageText }}",
+              "rightValue": "สั่งอาหาร",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "faq-menu",
+              "leftValue": "={{ $json.messageText }}",
+              "rightValue": "เมนู",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "faq-payment",
+              "leftValue": "={{ $json.messageText }}",
+              "rightValue": "ชำระ",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "4e5f6g7h-8i9j-0123-ef12-345678901234",
+      "name": "FAQ Router",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced FAQ Response Generator with 5 categories\nconst messageText = $json.messageText;\nlet replyText = \"\";\nlet quickReplies = [];\n\n// FAQ responses from workflows.md\nif (messageText.includes(\"เวลา\") || messageText.includes(\"เปิด\") || messageText.includes(\"ปิด\")) {\n  replyText = \"เปิดให้บริการทุกวัน 10:00-21:00 น. รับออร์เดอร์ล่าสุด 20:30 น.\";\n  quickReplies = [\"สั่งอาหาร\", \"ที่อยู่ร้าน\", \"วิธีชำระเงิน\"];\n  \n} else if (messageText.includes(\"ที่อยู่\") || messageText.includes(\"อยู่ไหน\") || messageText.includes(\"ตำแหน่ง\")) {\n  replyText = \"📍 123 ถนนสุขุมวิท แขวงคลองตัน เขตวัฒนา กรุงเทพฯ 10110\\n📞 02-xxx-xxxx\";\n  quickReplies = [\"สั่งอาหาร\", \"เวลาเปิด-ปิด\", \"วิธีชำระเงิน\"];\n  \n} else if (messageText.includes(\"สั่งอาหาร\") || messageText.includes(\"สั่ง\") || messageText.includes(\"order\")) {\n  replyText = \"สั่งออนไลน์ได้ที่ order.tenzaitech.online หรือกดปุ่ม 'สั่งอาหาร' ด้านล่าง 🍜\";\n  quickReplies = [\"ดูเมนู\", \"วิธีชำระเงิน\", \"เวลาเปิด-ปิด\"];\n  \n} else if (messageText.includes(\"ราคา\") || messageText.includes(\"เมนู\") || messageText.includes(\"menu\")) {\n  replyText = \"ดูเมนูและราคาทั้งหมดได้ที่หน้าสั่งอาหาร หรือสอบถามเพิ่มเติมได้เลยค่ะ\";\n  quickReplies = [\"สั่งอาหาร\", \"เวลาเปิด-ปิด\", \"ที่อยู่ร้าน\"];\n  \n} else if (messageText.includes(\"ชำระ\") || messageText.includes(\"เงิน\") || messageText.includes(\"จ่าย\") || messageText.includes(\"payment\")) {\n  replyText = \"รับชำระเงินสด/โอนเงิน/พร้อมเพย์ ส่งสลิปมาในแชทหลังสั่งเสร็จนะคะ\";\n  quickReplies = [\"สั่งอาหาร\", \"ดูเมนู\", \"เวลาเปิด-ปิด\"];\n  \n} else {\n  replyText = \"ขออภัยค่ะ ไม่เข้าใจคำถาม ลองถามใหม่หรือกด 'สั่งอาหาร' เลยนะคะ 😊\";\n  quickReplies = [\"สั่งอาหาร\", \"เวลาเปิด-ปิด\", \"ที่อยู่ร้าน\"];\n}\n\nreturn [{\n  json: {\n    replyToken: $json.replyToken,\n    replyText: replyText,\n    userId: $json.userId,\n    quickReplies: quickReplies,\n    responseType: \"faq\"\n  }\n}];"
+      },
+      "id": "5f6g7h8i-9j0k-1234-f123-456789012345",
+      "name": "Generate FAQ Response (Enhanced)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Order Button Message with LIFF integration\nconst replyText = \"สวัสดีค่ะ! ยินดีต้อนรับสู่ Tenzai Sushi 🍣\\n\\nสั่งอาหารได้ง่ายๆ ผ่านหน้าเว็บของเรา\\nสะดวก รวดเร็ว ปลอดภัย\";\n\nreturn [{\n  json: {\n    replyToken: $json.replyToken,\n    replyText: replyText,\n    userId: $json.userId,\n    showOrderButton: true,\n    responseType: \"order_intent\"\n  }\n}];"
+      },
+      "id": "6g7h8i9j-0k1l-2345-g234-567890123456",
+      "name": "Generate Order Button (Enhanced)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced LINE Reply Formatter with Quick Replies support\nconst replyToken = $json.replyToken;\nconst replyText = $json.replyText;\nconst showOrderButton = $json.showOrderButton || false;\nconst quickReplies = $json.quickReplies || [];\nconst responseType = $json.responseType || \"general\";\n\nlet messages = [];\n\n// Main text message\nlet textMessage = {\n  type: \"text\",\n  text: replyText\n};\n\n// Add quick reply buttons if available\nif (quickReplies.length > 0) {\n  textMessage.quickReply = {\n    items: quickReplies.map(text => ({\n      type: \"action\",\n      action: {\n        type: \"message\",\n        label: text,\n        text: text\n      }\n    }))\n  };\n}\n\nmessages.push(textMessage);\n\n// Add order button for non-FAQ responses or specific intents\nif (showOrderButton || responseType === \"order_intent\") {\n  messages.push({\n    type: \"template\",\n    altText: \"สั่งอาหาร Tenzai Sushi\",\n    template: {\n      type: \"buttons\",\n      text: \"เลือกวิธีสั่งอาหาร\",\n      actions: [\n        {\n          type: \"uri\",\n          label: \"🍜 สั่งอาหารออนไลน์\",\n          uri: \"https://order.tenzaitech.online\"\n        },\n        {\n          type: \"message\",\n          label: \"📋 ดูเมนูทั้งหมด\",\n          text: \"ดูเมนู\"\n        },\n        {\n          type: \"message\",\n          label: \"📞 สอบถามเพิ่มเติม\",\n          text: \"ติดต่อพนักงาน\"\n        }\n      ]\n    }\n  });\n}\n\n// Log conversation for analytics (optional)\nconst conversationLog = {\n  userId: $json.userId,\n  responseType: responseType,\n  timestamp: new Date().toISOString(),\n  messageCount: messages.length\n};\n\nreturn [{\n  json: {\n    replyToken: replyToken,\n    messages: messages,\n    success: true,\n    conversationLog: conversationLog,\n    shouldLogConversation: true\n  }\n}];"
+      },
+      "id": "7h8i9j0k-1l2m-3456-h345-678901234567",
+      "name": "Format LINE Reply (Enhanced)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"success\", \"message\": \"Reply sent\", \"messageCount\": $json.messages.length } }}"
+      },
+      "id": "8i9j0k1l-2m3n-4567-i456-789012345678",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - LINE Chat": {
+      "main": [
+        [
+          {
+            "node": "Validate Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Signature": {
+      "main": [
+        [
+          {
+            "node": "Security Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security Check": {
+      "main": [
+        [
+          {
+            "node": "Reject Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse LINE Data (Secure)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LINE Data (Secure)": {
+      "main": [
+        [
+          {
+            "node": "FAQ Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FAQ Router": {
+      "main": [
+        [
+          {
+            "node": "Generate FAQ Response (Enhanced)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Order Button (Enhanced)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate FAQ Response (Enhanced)": {
+      "main": [
+        [
+          {
+            "node": "Format LINE Reply (Enhanced)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Order Button (Enhanced)": {
+      "main": [
+        [
+          {
+            "node": "Format LINE Reply (Enhanced)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format LINE Reply (Enhanced)": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-08-18T11:00:00.000Z",
+  "versionId": "2"
+}

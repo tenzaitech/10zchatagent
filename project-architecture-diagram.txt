@@ -1,0 +1,115 @@
+TENZAI FOOD ORDERING SYSTEM - ARCHITECTURE DIAGRAM
+==================================================
+
+    [CUSTOMER CHANNELS]
+    ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+    │    LINE     │  │  Facebook   │  │ Instagram   │
+    │  Messenger  │  │  Messenger  │  │     DM      │
+    └─────┬───────┘  └─────┬───────┘  └─────┬───────┘
+          │                │                │
+          └────────┬───────────────┬────────┘
+                   │ WEBHOOKS      │
+                   ▼               ▼
+    ┌─────────────────────────────────────────────────┐
+    │          CLOUDFLARE TUNNEL                      │
+    │     (Security Layer + SSL Termination)         │
+    │   • Signature Validation                        │
+    │   • Rate Limiting                               │
+    │   • SSL/TLS Encryption                         │
+    └─────────────────┬───────────────────────────────┘
+                      │ HTTPS
+                      ▼
+    ┌─────────────────────────────────────────────────┐
+    │                 n8n WORKFLOWS                   │
+    │  ┌─────────────┐ ┌─────────────┐ ┌──────────────┐│
+    │  │    WF-A     │ │    WF-B     │ │    WF-C      ││
+    │  │  Inbound    │ │  Order      │ │  Utilities   ││
+    │  │  Messaging  │ │ Processing  │ │  & Helpers   ││
+    │  └─────────────┘ └─────────────┘ └──────────────┘│
+    │                                                 │
+    │  Business Logic:                                │
+    │  • FAQ Responses                                │
+    │  • Intent Recognition                           │
+    │  • Order Validation & Re-pricing               │
+    │  • Staff Notifications                         │
+    └─────────────────┬───────────────────────────────┘
+                      │ REST API
+                      ▼
+    ┌─────────────────────────────────────────────────┐
+    │            SUPABASE DATABASE                    │
+    │                                                 │
+    │  PUBLIC TABLES (Read-only via Anon Key):       │
+    │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐│
+    │  │ categories  │ │    menus    │ │system_settings│
+    │  └─────────────┘ └─────────────┘ └─────────────┘│
+    │                                                 │
+    │  PRIVATE TABLES (Write via Service Role):      │
+    │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐│
+    │  │  customers  │ │   orders    │ │order_items  ││
+    │  └─────────────┘ └─────────────┘ └─────────────┘│
+    │  ┌─────────────┐                                │
+    │  │conversations│                                │
+    │  └─────────────┘                                │
+    └─────────────────────────────────────────────────┘
+                              ▲
+                              │ Direct HTTPS
+                              │
+    ┌─────────────────────────────────────────────────┐
+    │             CUSTOMER WEB APP                    │
+    │          https://order.tenzaitech.online        │
+    │                                                 │
+    │  Features:                                      │
+    │  • Browse Menu by Categories                    │
+    │  • Add Items to Cart                           │
+    │  • Checkout Process                             │
+    │  • Order Summary & Contact Info                 │
+    │                                                 │
+    │  Security:                                      │
+    │  • Anon Key for READ operations only           │
+    │  • Client-side validation                       │
+    │  • HTTPS encryption                             │
+    └─────────────────────────────────────────────────┘
+
+    [ADMIN INTERFACES]
+    ┌─────────────────────────────────────────────────┐
+    │              ADMIN DASHBOARD                    │
+    │                                                 │
+    │  • Menu Management (CRUD)                       │
+    │  • Category Management                          │
+    │  • Order Monitoring                             │
+    │  • System Settings                              │
+    │  • Data Import Tools                            │
+    └─────────────────────────────────────────────────┘
+
+DATA FLOW:
+==========
+
+1. CUSTOMER INTERACTION:
+   Customer → [LINE/FB/IG] → Cloudflare → n8n WF-A → FAQ Response
+                                      └→ "สั่งอาหาร" button → WebApp
+
+2. ORDERING PROCESS:
+   Customer → WebApp → Browse/Select → Checkout → n8n WF-B → Validate/Re-price
+                                                          └→ Create Order → DB
+                                                          └→ Notify Staff
+
+3. STAFF NOTIFICATION:
+   n8n WF-B → LINE Push Message → Staff → [Confirm/Reject] → Update Order Status
+
+SECURITY LAYERS:
+===============
+
+• Cloudflare Tunnel: External firewall + DDoS protection
+• Webhook Signatures: Verify authentic requests from platforms
+• Supabase RLS: Row Level Security policies
+• API Keys: Separate anon (read-only) vs service role (full access)
+• Rate Limiting: Prevent spam and abuse
+• SSL/TLS: End-to-end encryption
+
+SCALABILITY NOTES:
+=================
+
+• Supabase Free Tier: 500MB DB, 2GB bandwidth/month
+• n8n: Single instance, can scale with Docker Swarm if needed
+• Cloudflare: Global CDN with unlimited bandwidth
+• File Storage: Use Supabase Storage for receipts/images (7-day auto-delete)
