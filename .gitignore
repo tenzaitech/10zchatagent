@@ -1,11 +1,18 @@
 # Environment variables and configuration
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 .key.md
 key.md
+keys.md
+credentials.md
+secrets.md
+
+# API Keys and tokens
+*api_key*
+*secret*
+*token*
+*.credentials
+*.auth
 
 # Dependencies
 node_modules/
@@ -109,6 +116,29 @@ build/
 dist/
 out/
 
-# Windows batch files (keeping manual start file but ignoring other temp batch files)
-*.bat
-!manual-start-all-app.bat
+# Windows batch files (keeping essential start files only)
+# Remove the *.bat ignore to allow our start scripts
+start-api.bat
+start-webapp.bat
+start-ngrok.bat
+start-ngrok-all.bat
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+chatbot-api/venv/
+chatbot-api/__pycache__/
+
+# Configuration backups and schema exports
+schema.json
+schema-*.json
+database-export.sql
+
+# Development artifacts
+test-*
+debug-*
+*.test.log

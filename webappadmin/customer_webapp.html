@@ -932,7 +932,7 @@
                     channel: 'line', // Default channel (can be detected from URL params)
                     source: 'web',
                     cart: cart.map(item => ({
-                        menu_id: item.id,
+                        menu_id: item.menu_id,
                         qty: item.quantity,
                         note: null // Future: add note field in UI
                     })),
@@ -945,10 +945,17 @@
                     }
                 };
                 
-                console.log('Sending order to n8n:', orderData);
+                console.log('Sending order to API:', orderData);
                 
-                // Send to n8n WF-B endpoint
-                const response = await fetch('https://n8n-dev.tenzaitech.online/webhook/orders/create', {
+                // Send to Python API endpoint via ngrok
+                const API_BASE_URL = window.location.hostname.includes('ngrok.io') 
+                    ? 'https://78f1130f2efc.ngrok.app' 
+                    : 'http://localhost:8000';
+                
+                console.log('Current hostname:', window.location.hostname);
+                console.log('Using API_BASE_URL:', API_BASE_URL);
+                
+                const response = await fetch(`${API_BASE_URL}/api/orders/create`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -959,12 +966,12 @@
                 let result = {};
                 try {
                     const responseText = await response.text();
-                    console.log('n8n Response Text:', responseText);
+                    console.log('API Response Text:', responseText);
                     
                     if (responseText.trim()) {
                         result = JSON.parse(responseText);
                     } else {
-                        console.log('Empty response from n8n, assuming success');
+                        console.log('Empty response from API, assuming success');
                         result = { status: 'success', message: 'สั่งอาหารเรียบร้อยแล้ว' };
                     }
                 } catch (parseError) {
@@ -972,7 +979,7 @@
                     result = { status: 'success', message: 'สั่งอาหารเรียบร้อยแล้ว' };
                 }
                 
-                console.log('n8n Parsed Result:', result);
+                console.log('API Parsed Result:', result);
                 
                 if (response.ok && (result.status === 'success' || response.status === 200)) {
                     // Success
@@ -1002,7 +1009,7 @@
                     toggleCart();
                     
                 } else {
-                    // Error from n8n
+                    // Error from API
                     const errorMessage = result.message || result.error || 'เกิดข้อผิดพลาดในการสั่งอาหาร';
                     showStatus(`❌ ${errorMessage}`, 'error');
                     

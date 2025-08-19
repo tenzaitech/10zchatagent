@@ -9,6 +9,7 @@ import json
 import hashlib
 import hmac
 import base64
+import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import httpx
@@ -23,10 +24,15 @@ print("🔧 Loading .env file...")
 
 app = FastAPI(title="Tenzai Chatbot API", version="1.0.0")
 
-# CORS for web app
+# CORS for web app (including ngrok domains)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://tenzai-order.ngrok.io",
+        "https://*.ngrok.io",  # Allow any ngrok subdomain
+        "*"  # Fallback for development
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -164,8 +170,10 @@ async def supabase_request(method: str, endpoint: str, data: Dict = None, use_se
         if response.status_code not in [200, 201, 204]:
             print(f"❌ Supabase error: {response.status_code}")
             print(f"   URL: {url}")
+            print(f"   Headers: {headers}")
+            print(f"   Data sent: {data}")
             print(f"   Response: {response.text}")
-            raise HTTPException(status_code=500, detail="Database error")
+            raise HTTPException(status_code=500, detail=f"Database error: {response.status_code} - {response.text}")
         
         result = response.json() if response.text else {}
         print(f"✅ Supabase response: {len(str(result))} chars")
@@ -272,6 +280,93 @@ def verify_line_signature(body: bytes, signature: str) -> bool:
 async def health_check():
     return {"status": "ok", "service": "Tenzai Chatbot API", "timestamp": datetime.now().isoformat()}
 
+@app.get("/api/schema/inspect")
+async def inspect_database_schema():
+    """Get all table schemas from Supabase"""
+    try:
+        schemas = {}
+        
+        # Get list of tables first
+        tables_query = """
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_type = 'BASE TABLE'
+        """
+        
+        tables_result = await supabase_request("POST", "rpc/exec", {"sql": tables_query})
+        print(f"📋 Found tables: {tables_result}")
+        
+        # For each table, get column info
+        for table_info in tables_result:
+            table_name = table_info['table_name']
+            
+            columns_query = f"""
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns
+                WHERE table_name = '{table_name}'
+                ORDER BY ordinal_position
+            """
+            
+            try:
+                columns_result = await supabase_request("POST", "rpc/exec", {"sql": columns_query})
+                schemas[table_name] = columns_result
+            except Exception as e:
+                print(f"❌ Error getting columns for {table_name}: {e}")
+                schemas[table_name] = {"error": str(e)}
+        
+        return {
+            "status": "success",
+            "schemas": schemas,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Schema inspection error: {e}")
+        return {
+            "status": "error", 
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+@app.get("/api/schema/sample-data")
+async def get_sample_data():
+    """Get sample data from all tables to see structure"""
+    try:
+        samples = {}
+        tables = ['customers', 'orders', 'order_items', 'menus', 'categories', 'conversations']
+        
+        for table in tables:
+            try:
+                print(f"📊 Getting sample from {table}...")
+                # Get first row to see structure
+                data = await supabase_request("GET", f"{table}?limit=1", use_service_key=False)
+                samples[table] = {
+                    'sample_row': data[0] if data else None,
+                    'columns': list(data[0].keys()) if data else [],
+                    'row_count': len(data)
+                }
+            except Exception as e:
+                print(f"❌ Error accessing {table}: {e}")
+                samples[table] = {
+                    'error': str(e),
+                    'accessible': False
+                }
+        
+        return {
+            "status": "success",
+            "samples": samples,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        print(f"❌ Sample data error: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
 @app.post("/webhook/line")
 async def line_webhook(request: Request):
     """Handle LINE webhook events with comprehensive error handling"""
@@ -340,7 +435,7 @@ async def line_webhook(request: Request):
                                     {
                                         "type": "uri",
                                         "label": "🍜 สั่งอาหาร",
-                                        "uri": "https://order.tenzaitech.online"
+                                        "uri": "https://tenzai-order.ap.ngrok.io/customer_webapp.html"
                                     }
                                 ]
                             }
@@ -361,7 +456,7 @@ async def line_webhook(request: Request):
                                     {
                                         "type": "uri",
                                         "label": "🍜 สั่งอาหาร",
-                                        "uri": "https://order.tenzaitech.online"
+                                        "uri": "https://tenzai-order.ap.ngrok.io/customer_webapp.html"
                                     }
                                 ]
                             }
@@ -405,7 +500,7 @@ async def line_webhook(request: Request):
                                     {
                                         "type": "uri",
                                         "label": "🍜 สั่งอาหาร", 
-                                        "uri": "https://order.tenzaitech.online"
+                                        "uri": "https://tenzai-order.ap.ngrok.io/customer_webapp.html"
                                     }
                                 ]
                             }
@@ -491,49 +586,106 @@ async def create_order(request: Request):
                 "quantity": quantity,
                 "unit_price": unit_price,
                 "total_price": item_total,
-                "note": item.get("note", "")
+                "notes": item.get("note", "")
             })
         
-        # Upsert customer
-        customer_data = {
-            "display_name": contact["name"],
-            "phone": contact["phone"],
-        }
+        # Simple customer creation/find
+        print(f"🔍 Processing customer: name={contact['name']}, phone={contact['phone']}")
         
-        # Add user reference if available
-        user_ref = order_data.get("user_ref", {})
-        if user_ref.get("line_user_id"):
-            customer_data["line_user_id"] = user_ref["line_user_id"]
+        # First try to find existing customer
+        customer_id = None
+        phone = contact['phone']
         
-        # Try to upsert customer (this is simplified - in production you'd handle conflicts better)
-        customer = await supabase_request("POST", "customers", customer_data)
-        customer_id = customer[0]["id"] if customer else None
+        try:
+            # Look for existing customer by phone
+            existing_query = f"customers?phone=eq.{phone}&select=id&limit=1"
+            existing_customers = await supabase_request("GET", existing_query, use_service_key=False)
+            
+            if existing_customers and len(existing_customers) > 0:
+                customer_id = existing_customers[0]["id"]
+                print(f"✅ Found existing customer: {customer_id}")
+            else:
+                # Create new customer
+                customer_data = {
+                    "display_name": contact["name"],
+                    "phone": contact["phone"],
+                    "line_user_id": f"WEB_{str(uuid.uuid4())[:8]}"
+                }
+                
+                print(f"📝 Creating new customer: {customer_data}")
+                # Use direct endpoint without ?select=
+                customer_result = await supabase_request("POST", "customers", customer_data)
+                
+                # If result is empty, the customer was created but not returned
+                # Query again to get the ID
+                if not customer_result or len(customer_result) == 0:
+                    print("🔄 Customer created but no ID returned, fetching...")
+                    # Query by line_user_id which is unique
+                    fetch_query = f"customers?line_user_id=eq.{customer_data['line_user_id']}&select=id&limit=1"
+                    fetch_result = await supabase_request("GET", fetch_query, use_service_key=False)
+                    if fetch_result and len(fetch_result) > 0:
+                        customer_id = fetch_result[0]["id"]
+                        print(f"✅ Fetched customer ID: {customer_id}")
+                else:
+                    customer_id = customer_result[0]["id"]
+                    print(f"✅ Customer created with ID: {customer_id}")
+                    
+        except Exception as e:
+            print(f"❌ Customer operation error: {e}")
+            raise HTTPException(status_code=500, detail=f"Customer operation failed: {str(e)}")
         
         if not customer_id:
-            raise HTTPException(status_code=500, detail="Failed to create/find customer")
+            raise HTTPException(status_code=500, detail="Failed to get customer ID")
         
-        # Generate order number
-        order_number = f"T{datetime.now().strftime('%y%m%d')}{datetime.now().hour:02d}{datetime.now().minute:02d}"
+        # Generate simple order number
+        order_number = f"T{datetime.now().strftime('%y%m%d%H%M%S')}"
         
-        # Create order
-        order_data = {
-            "customer_id": customer_id,
+        # Create order with minimal data
+        order_data_db = {
             "order_number": order_number,
+            "customer_id": customer_id,
             "customer_name": contact["name"],
+            "customer_phone": contact["phone"],
             "status": "pending",
-            "total_amount": total_amount,
             "order_type": "pickup",
-            "created_at": datetime.now().isoformat()
+            "total_amount": total_amount,
+            "payment_method": "qr_code",
+            "payment_status": "unpaid",
         }
         
-        order = await supabase_request("POST", "orders", order_data)
-        order_id = order[0]["id"]
+        print(f"📝 Creating order: {order_data_db}")
+        order_result = await supabase_request("POST", "orders", order_data_db)
+        
+        # Handle order ID the same way as customer
+        order_id = None
+        if not order_result or len(order_result) == 0:
+            print("🔄 Order created but no ID returned, fetching...")
+            fetch_query = f"orders?order_number=eq.{order_number}&select=id&limit=1"
+            fetch_result = await supabase_request("GET", fetch_query, use_service_key=False)
+            if fetch_result and len(fetch_result) > 0:
+                order_id = fetch_result[0]["id"]
+                print(f"✅ Fetched order ID: {order_id}")
+        else:
+            order_id = order_result[0]["id"]
+            print(f"✅ Order created with ID: {order_id}")
+            
+        if not order_id:
+            raise HTTPException(status_code=500, detail="Failed to get order ID")
         
         # Create order items
-        for item in validated_items:
-            item["order_id"] = order_id
+        try:
+            for item in validated_items:
+                item["order_id"] = order_id
             
-        await supabase_request("POST", "order_items", validated_items)
+            if validated_items:
+                print(f"📝 Creating {len(validated_items)} order items")
+                await supabase_request("POST", "order_items", validated_items)
+                print(f"✅ Created {len(validated_items)} order items")
+            else:
+                raise HTTPException(status_code=400, detail="No valid items to create")
+        except Exception as e:
+            print(f"❌ Order items creation failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Order items creation failed: {str(e)}")
         
         # TODO: Send staff notification (LINE push message to staff)
         # This would require staff LINE user IDs in system_settings
@@ -541,7 +693,8 @@ async def create_order(request: Request):
         return {
             "success": True,
             "order_id": order_number,
-            "total": total_amount,
+            "total_price": total_amount,
+            "items_count": len(validated_items),
             "message": f"ออเดอร์ {order_number} สำเร็จ! ยอดรวม {total_amount:,.0f} บาท"
         }
         
