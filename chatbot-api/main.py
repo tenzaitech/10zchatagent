@@ -15,6 +15,11 @@ import httpx
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
+print("🔧 Loading .env file...")
 
 app = FastAPI(title="Tenzai Chatbot API", version="1.0.0")
 
@@ -33,6 +38,36 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+
+# Validate required environment variables
+required_vars = {
+    "SUPABASE_URL": SUPABASE_URL,
+    "SUPABASE_SERVICE_ROLE_KEY": SUPABASE_SERVICE_KEY,
+    "LINE_CHANNEL_ACCESS_TOKEN": LINE_CHANNEL_ACCESS_TOKEN,
+    "LINE_CHANNEL_SECRET": LINE_CHANNEL_SECRET,
+}
+
+# Debug environment loading
+print(f"🔍 Debug environment variables:")
+print(f"   SUPABASE_URL: {SUPABASE_URL}")
+print(f"   SUPABASE_SERVICE_ROLE_KEY: {'SET' if SUPABASE_SERVICE_KEY else 'NOT_SET'} ({len(SUPABASE_SERVICE_KEY)} chars)")
+print(f"   LINE_CHANNEL_ACCESS_TOKEN: {'SET' if LINE_CHANNEL_ACCESS_TOKEN else 'NOT_SET'} ({len(LINE_CHANNEL_ACCESS_TOKEN)} chars)")
+print(f"   LINE_CHANNEL_SECRET: {'SET' if LINE_CHANNEL_SECRET else 'NOT_SET'} ({len(LINE_CHANNEL_SECRET)} chars)")
+print(f"   OPENROUTER_API_KEY: {'SET' if OPENROUTER_API_KEY else 'NOT_SET'} ({len(OPENROUTER_API_KEY)} chars)")
+
+missing_vars = [key for key, value in required_vars.items() if not value]
+if missing_vars:
+    print(f"❌ Missing required environment variables: {', '.join(missing_vars)}")
+    print("🔧 Make sure .env file exists in the same directory as main.py")
+    print("💡 Also check that python-dotenv is installed: pip install python-dotenv")
+    exit(1)
+else:
+    print("✅ All required environment variables loaded")
+    if OPENROUTER_API_KEY:
+        print("✅ OpenRouter API key loaded")
+    else:
+        print("⚠️ OpenRouter API key not set (AI features disabled)")
 
 # FAQ Responses
 FAQ_RESPONSES = {
@@ -45,74 +80,179 @@ FAQ_RESPONSES = {
 
 FALLBACK_MESSAGE = "ขออภัยค่ะ ไม่เข้าใจคำถาม 🤔\nลองถามใหม่หรือกด 'สั่งอาหาร' เลยนะคะ 😊"
 
-async def supabase_request(method: str, endpoint: str, data: Dict = None, use_service_key: bool = True) -> Dict:
-    """Make request to Supabase REST API"""
-    headers = {
-        "apikey": SUPABASE_SERVICE_KEY if use_service_key else SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_SERVICE_KEY if use_service_key else SUPABASE_ANON_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
-    
-    async with httpx.AsyncClient() as client:
-        if method == "GET":
-            response = await client.get(url, headers=headers)
-        elif method == "POST":
-            response = await client.post(url, headers=headers, json=data)
-        elif method == "PATCH":
-            response = await client.patch(url, headers=headers, json=data)
+async def get_ai_response(message: str, user_id: str = "") -> str:
+    """Get AI response from OpenRouter for complex queries"""
+    try:
+        if not OPENROUTER_API_KEY:
+            print("⚠️ OpenRouter API key not available, using fallback")
+            return FALLBACK_MESSAGE
+            
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://order.tenzaitech.online",
+            "X-Title": "Tenzai Sushi Chatbot"
+        }
+        
+        # System prompt สำหรับร้านอาหาร
+        system_prompt = """คุณคือผู้ช่วยร้านอาหารญี่ปุ่น Tenzai Sushi 
+- ตอบสั้นๆ กะทัดรัด ไม่เกิน 2-3 ประโยค
+- พูดแบบเป็นมิตร ใช้ "ค่ะ/ครับ"
+- ถ้าเกี่ยวกับเมนูหรือการสั่งอาหาร ให้แนะนำให้กด "สั่งอาหาร"
+- ถ้าไม่เข้าใจคำถาม ให้ตอบว่า "ขออภัยค่ะ ไม่เข้าใจคำถาม ลองถามใหม่นะคะ"
+- เวลาเปิด: 10:00-21:00 น. รับออเดอร์ล่าสุด 20:30 น.
+- ที่อยู่: 123 ถนนสุขุมวิท แขวงคลองตัน เขตวัฒนา กรุงเทพฯ"""
+
+        payload = {
+            "model": "mistralai/mistral-7b-instruct:free",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            "max_tokens": 100,
+            "temperature": 0.7
+        }
+        
+        print(f"🤖 Asking AI: {message[:50]}...")
+        
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            
+        if response.status_code == 200:
+            data = response.json()
+            ai_response = data["choices"][0]["message"]["content"].strip()
+            print(f"✅ AI response: {ai_response[:50]}...")
+            return ai_response
         else:
-            raise ValueError(f"Unsupported method: {method}")
-    
-    if response.status_code not in [200, 201, 204]:
-        print(f"Supabase error: {response.status_code} - {response.text}")
+            print(f"❌ OpenRouter error: {response.status_code}")
+            print(f"   Response: {response.text}")
+            return FALLBACK_MESSAGE
+            
+    except httpx.TimeoutException:
+        print("❌ AI request timeout")
+        return FALLBACK_MESSAGE
+    except Exception as e:
+        print(f"❌ AI error: {e}")
+        return FALLBACK_MESSAGE
+
+async def supabase_request(method: str, endpoint: str, data: Dict = None, use_service_key: bool = True) -> Dict:
+    """Make request to Supabase REST API with enhanced error handling"""
+    try:
+        headers = {
+            "apikey": SUPABASE_SERVICE_KEY if use_service_key else SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY if use_service_key else SUPABASE_ANON_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
+        print(f"📡 {method} {endpoint} (service_key: {use_service_key})")
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if method == "GET":
+                response = await client.get(url, headers=headers)
+            elif method == "POST":
+                response = await client.post(url, headers=headers, json=data)
+            elif method == "PATCH":
+                response = await client.patch(url, headers=headers, json=data)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+        
+        if response.status_code not in [200, 201, 204]:
+            print(f"❌ Supabase error: {response.status_code}")
+            print(f"   URL: {url}")
+            print(f"   Response: {response.text}")
+            raise HTTPException(status_code=500, detail="Database error")
+        
+        result = response.json() if response.text else {}
+        print(f"✅ Supabase response: {len(str(result))} chars")
+        return result
+        
+    except httpx.TimeoutException:
+        print("❌ Supabase timeout")
+        raise HTTPException(status_code=504, detail="Database timeout")
+    except httpx.RequestError as e:
+        print(f"❌ Supabase connection error: {e}")
+        raise HTTPException(status_code=503, detail="Database connection failed")
+    except Exception as e:
+        print(f"❌ Unexpected error in supabase_request: {e}")
         raise HTTPException(status_code=500, detail="Database error")
-    
-    return response.json() if response.text else {}
 
 async def send_line_message(reply_token: str, messages: List[Dict]):
-    """Send reply message to LINE"""
-    if not LINE_CHANNEL_ACCESS_TOKEN:
-        print("LINE_CHANNEL_ACCESS_TOKEN not set")
-        return
-    
-    headers = {
-        "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "replyToken": reply_token,
-        "messages": messages
-    }
-    
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "https://api.line.me/v2/bot/message/reply",
-            headers=headers,
-            json=payload
-        )
+    """Send reply message to LINE with enhanced error handling"""
+    try:
+        if not LINE_CHANNEL_ACCESS_TOKEN:
+            print("❌ LINE_CHANNEL_ACCESS_TOKEN not set")
+            return False
         
-    if response.status_code != 200:
-        print(f"LINE reply error: {response.status_code} - {response.text}")
+        headers = {
+            "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "replyToken": reply_token,
+            "messages": messages
+        }
+        
+        print(f"📤 Sending LINE message: {len(messages)} message(s)")
+        
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api.line.me/v2/bot/message/reply",
+                headers=headers,
+                json=payload
+            )
+            
+        if response.status_code == 200:
+            print("✅ LINE message sent successfully")
+            return True
+        else:
+            print(f"❌ LINE reply error: {response.status_code}")
+            print(f"   Response: {response.text}")
+            return False
+            
+    except httpx.TimeoutException:
+        print("❌ LINE API timeout")
+        return False
+    except Exception as e:
+        print(f"❌ Error sending LINE message: {e}")
+        return False
 
 def classify_intent(message_text: str) -> str:
-    """Classify user intent from message"""
+    """Smart intent classification - FAQ vs AI vs Order"""
     text = message_text.lower()
     
-    if any(word in text for word in ["เวลา", "เปิด", "ปิด", "โมง", "hours"]):
+    # FAQ patterns (high confidence)
+    if any(word in text for word in ["เวลา", "เปิด", "ปิด", "โมง", "hours", "กี่โมง"]):
         return "hours"
-    elif any(word in text for word in ["ที่อยู่", "แอดเดรส", "location", "address"]):
+    elif any(word in text for word in ["ที่อยู่", "แอดเดรส", "location", "address", "อยู่ไหน", "ที่ไหน"]):
         return "location"
-    elif any(word in text for word in ["ราคา", "เท่าไร", "price", "cost"]):
+    elif any(word in text for word in ["ราคา", "เท่าไร", "price", "cost", "กี่บาท"]):
         return "menu"
-    elif any(word in text for word in ["ชำระ", "จ่าย", "payment", "pay"]):
+    elif any(word in text for word in ["ชำระ", "จ่าย", "payment", "pay", "โอน", "เงิน"]):
         return "payment"
-    elif any(word in text for word in ["สั่ง", "เมนู", "อาหาร", "order", "food", "menu"]):
+    elif any(word in text for word in ["สั่ง", "order", "โอเดอร์", "สั่งอาหาร"]):
         return "order"
-    else:
-        return "unknown"
+    
+    # Check for restaurant/food context
+    restaurant_keywords = ["เมนู", "อาหาร", "food", "menu", "sushi", "ซูชิ", "ข้าว", "น้ำ", "ของหวาน", "ทานเข้า", "กิน"]
+    if any(word in text for word in restaurant_keywords):
+        return "menu"
+    
+    # Simple greeting
+    if any(word in text for word in ["สวัสดี", "hello", "hi", "ครับ", "ค่ะ", "หวัดดี"]):
+        return "greeting"
+    
+    # Complex questions for AI
+    if len(text) > 15 and any(char in text for char in ["?", "ไหม", "มั้ย", "ได้ไหม", "อย่างไร", "ทำไม"]):
+        return "ai_complex"
+    
+    # Default to AI for everything else
+    return "ai_fallback"
 
 def verify_line_signature(body: bytes, signature: str) -> bool:
     """Verify LINE webhook signature"""
@@ -134,19 +274,39 @@ async def health_check():
 
 @app.post("/webhook/line")
 async def line_webhook(request: Request):
-    """Handle LINE webhook events"""
+    """Handle LINE webhook events with comprehensive error handling"""
     try:
+        print("🔔 Received LINE webhook")
+        
         # Get signature
         signature = request.headers.get('X-Line-Signature', '')
+        if not signature:
+            print("❌ Missing X-Line-Signature header")
+            raise HTTPException(status_code=400, detail="Missing signature")
+            
         body = await request.body()
+        if not body:
+            print("❌ Empty request body")
+            raise HTTPException(status_code=400, detail="Empty body")
         
-        # Verify signature (temporarily disabled for testing)
-        # if not verify_line_signature(body, signature):
-        #     raise HTTPException(status_code=401, detail="Invalid signature")
-        print(f"Signature check: {signature[:20]}... (validation disabled)")
+        # Verify signature
+        print(f"🔐 Verifying signature: {signature[:20]}...")
+        if not verify_line_signature(body, signature):
+            print(f"❌ Signature verification failed!")
+            print(f"   Expected format: base64 encoded HMAC-SHA256")
+            print(f"   Channel Secret: {LINE_CHANNEL_SECRET[:10] if LINE_CHANNEL_SECRET else 'NOT_SET'}...")
+            print(f"   Body length: {len(body)} bytes")
+            raise HTTPException(status_code=401, detail="Invalid signature")
+        print("✅ Signature verification passed")
         
         # Parse body
-        events = json.loads(body.decode('utf-8')).get('events', [])
+        try:
+            webhook_data = json.loads(body.decode('utf-8'))
+            events = webhook_data.get('events', [])
+            print(f"📨 Parsed {len(events)} event(s)")
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON parsing failed: {e}")
+            raise HTTPException(status_code=400, detail="Invalid JSON")
         
         for event in events:
             if event['type'] == 'message' and event['message']['type'] == 'text':
@@ -154,11 +314,17 @@ async def line_webhook(request: Request):
                 reply_token = event['replyToken']
                 user_id = event['source']['userId']
                 
+                print(f"👤 Message from {user_id}: {message_text}")
+                
                 # Classify intent and get response
                 intent = classify_intent(message_text)
+                print(f"🎯 Intent classified as: {intent}")
+                
+                response_text = ""
+                messages = []
                 
                 if intent in FAQ_RESPONSES:
-                    # FAQ Response
+                    # FAQ Response (instant)
                     response_text = FAQ_RESPONSES[intent]
                     messages = [{"type": "text", "text": response_text}]
                     
@@ -179,10 +345,56 @@ async def line_webhook(request: Request):
                                 ]
                             }
                         })
-                else:
-                    # Unknown intent - fallback with order button
+                
+                elif intent == "greeting":
+                    # Simple greeting
+                    response_text = "สวัสดีค่ะ! ยินดีต้อนรับสู่ Tenzai Sushi 🍣\nมีอะไรให้ช่วยไหมคะ?"
                     messages = [
-                        {"type": "text", "text": FALLBACK_MESSAGE},
+                        {"type": "text", "text": response_text},
+                        {
+                            "type": "template",
+                            "altText": "สั่งอาหาร",
+                            "template": {
+                                "type": "buttons",
+                                "text": "สั่งอาหารได้เลยค่ะ!",
+                                "actions": [
+                                    {
+                                        "type": "uri",
+                                        "label": "🍜 สั่งอาหาร",
+                                        "uri": "https://order.tenzaitech.online"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                
+                elif intent in ["ai_complex", "ai_fallback"]:
+                    # AI Response for complex queries
+                    response_text = await get_ai_response(message_text, user_id)
+                    messages = [{"type": "text", "text": response_text}]
+                    
+                    # Always add order button for AI responses
+                    messages.append({
+                        "type": "template",
+                        "altText": "สั่งอาหาร",
+                        "template": {
+                            "type": "buttons",
+                            "text": "หรือสั่งอาหารได้เลยค่ะ!",
+                            "actions": [
+                                {
+                                    "type": "uri",
+                                    "label": "🍜 สั่งอาหาร",
+                                    "uri": "https://order.tenzaitech.online"
+                                }
+                            ]
+                        }
+                    })
+                
+                else:
+                    # Fallback for anything else
+                    response_text = FALLBACK_MESSAGE
+                    messages = [
+                        {"type": "text", "text": response_text},
                         {
                             "type": "template",
                             "altText": "สั่งอาหาร",

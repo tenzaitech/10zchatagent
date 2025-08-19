@@ -10,3 +10,6 @@ Auth = 2yTjQNuKS08A117LzkLt2hlMndn_5j3EPsM6C59BMwNJmLfhD
 ##line
 Channel access token (long-lived) = D3OnaB8xAeG58PDLe2IqSyxh82ND4NKacuRAg3l5EAKDZ7Ustx4fMjvmXvHNJGupUy+QlvIDQacU6Tg83BBB4k0JX3DAO3qJzjZRZeZWteU4uJjvJSVu0QTAwCJ8YZrw/M2DzVtrNVWelwkorY7kXAdB04t89/1O/w1cDnyilFU=
 Channel secret = 1491279c8de2d2b4edafa94753a5397a
+
+##openrouter
+API KEY: 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
