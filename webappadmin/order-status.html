@@ -356,30 +356,23 @@
             return urlParams.get('order') || '';
         }
         
-        // API Base URL detection with multiple fallbacks
+        // API Base URL detection with ngrok support
         function getApiEndpoints() {
             const endpoints = [];
             
             if (window.location.hostname.includes('ngrok.io')) {
-                // If on ngrok, try different possible API endpoints in order of likelihood
-                endpoints.push(window.location.origin); // Same ngrok domain (if API is on same tunnel)
-                endpoints.push('https://tenzai-order.ap.ngrok.io'); // Known ngrok domain
+                // We're on ngrok domain - use the correct ngrok API endpoint
+                endpoints.push('https://78f1130f2efc.ngrok.app'); // Current ngrok API tunnel
                 
-                // Try different possible ngrok API endpoints that might exist
-                const currentDomain = window.location.hostname;
-                if (currentDomain !== 'tenzai-order.ap.ngrok.io') {
-                    // If we're on a different ngrok domain, try swapping it
-                    const possibleApiDomain = currentDomain.replace(/-webapp|-web|-app/, '-api');
-                    if (possibleApiDomain !== currentDomain) {
-                        endpoints.push(`https://${possibleApiDomain}`);
-                    }
-                }
+                // Try the same ngrok domain as fallback (in case API is also served there)
+                endpoints.push(window.location.origin);
+                
+            } else {
+                // Local development - API is on localhost
+                endpoints.push('http://localhost:8000');
             }
             
-            // Always try localhost as fallback (works for local testing)
-            endpoints.push('http://localhost:8000');
-            
-            return [...new Set(endpoints)]; // Remove duplicates
+            return endpoints;
         }
         
         // Load order status
@@ -436,7 +429,18 @@
                     }
                 } catch (error) {
                     console.warn(`Endpoint ${i + 1} error:`, error.message);
-                    lastError = error;
+                    console.warn('Error details:', error);
+                    
+                    // More specific error handling
+                    if (error.name === 'AbortError') {
+                        lastError = new Error(`Timeout (5s) - ${apiUrl}`);
+                    } else if (error.message.includes('CORS')) {
+                        lastError = new Error(`CORS blocked - ${apiUrl}`);
+                    } else if (error.message.includes('NetworkError')) {
+                        lastError = new Error(`Network error - ${apiUrl}`);
+                    } else {
+                        lastError = new Error(`Connection failed - ${apiUrl}: ${error.message}`);
+                    }
                 }
             }
             
@@ -447,7 +451,25 @@
             document.getElementById('error').innerHTML = `
                 <div>ไม่พบออเดอร์หรือเกิดข้อผิดพลาด</div>
                 <small>หมายเลขออเดอร์: ${orderNumber}</small><br>
-                <small>รายละเอียด: ${lastError ? lastError.message : 'Network error'}</small>
+                <small>รายละเอียด: ${lastError ? lastError.message : 'Network error'}</small><br><br>
+                <div style="margin-top: 15px;">
+                    <strong>ทางแก้ไขปัญหา:</strong><br>
+                    ${window.location.protocol === 'https:' ? 
+                        '<small>⚠️ หน้านี้ใช้ HTTPS แต่ API server ใช้ HTTP (localhost) browser จึง block การเชื่อมต่อ</small><br>' +
+                        '<small>💡 <strong>แก้ไข:</strong> เปิดหน้านี้ใน localhost แทน หรือตั้ง API server ให้รองรับ HTTPS</small><br><br>' +
+                        '<button onclick="window.open(\\`http://localhost:3001/webappadmin/order-status.html?order=${orderNumber}\\`, \\'_blank\\')" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📱 เปิดใน localhost</button>' 
+                        : 
+                        '<small>กด F12 → Console เพื่อดูข้อมูลการเชื่อมต่อ</small><br><br>'
+                    }
+                    <button onclick="window.open('http://localhost:8000/api/orders/${orderNumber}', '_blank')" 
+                            style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
+                        ทดสอบ API โดยตรง
+                    </button>
+                    <button onclick="loadOrderStatus()" 
+                            style="padding: 8px 15px; background: #ffc107; color: black; border: none; border-radius: 5px; cursor: pointer;">
+                        ลองใหม่
+                    </button>
+                </div>
             `;
             document.getElementById('orderContent').style.display = 'none';
         }
