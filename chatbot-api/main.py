@@ -353,54 +353,86 @@ async def line_webhook(request: Request, background_tasks: BackgroundTasks):
                 
                 print(f"💬 Message from {user_id}: {message_text}")
                 
-                # Classify intent and respond
+                # Classify intent and respond (matching original behavior)
                 intent = classify_intent(message_text)
+                print(f"🎯 Intent classified as: {intent}")
+                
+                response_text = ""
                 messages = []
                 
                 if intent in FAQ_RESPONSES:
-                    # FAQ response
-                    faq_text = FAQ_RESPONSES[intent]
-                    messages.append({
-                        "type": "text",
-                        "text": faq_text
-                    })
-                elif intent == "order":
-                    # Order intent - send web order link
-                    messages.append({
-                        "type": "text",
-                        "text": "🍣 สั่งอาหารผ่านหน้าเว็บได้เลยค่ะ!"
-                    })
-                    messages.append({
-                        "type": "template",
-                        "altText": "สั่งอาหาร Tenzai Sushi",
-                        "template": {
-                            "type": "buttons",
-                            "text": "เลือกวิธีการสั่งอาหาร",
-                            "actions": [{
-                                "type": "uri",
-                                "label": "🍣 สั่งอาหารเลย!",
-                                "uri": f"https://order.tenzaitech.online?line_id={user_id}&name=ลูกค้า LINE"
-                            }]
+                    # FAQ Response (instant)
+                    response_text = FAQ_RESPONSES[intent]
+                    messages = [{"type": "text", "text": response_text}]
+                    
+                    # Add order button for relevant intents with deep linking
+                    if intent in ["order", "menu"]:
+                        # Create deep link with LINE user ID for pre-fill customer data
+                        deep_link = f"https://tenzai-order.ap.ngrok.io/customer_webapp.html?platform=LINE&user_id={user_id}"
+                        messages.append({
+                            "type": "template",
+                            "altText": "สั่งอาหาร",
+                            "template": {
+                                "type": "buttons",
+                                "text": "คลิกสั่งอาหารได้เลย!",
+                                "actions": [
+                                    {
+                                        "type": "uri",
+                                        "label": "🍜 สั่งอาหาร",
+                                        "uri": deep_link
+                                    }
+                                ]
+                            }
+                        })
+                
+                elif intent == "greeting":
+                    # Simple greeting with deep linking
+                    response_text = "สวัสดีค่ะ! ยินดีต้อนรับสู่ Tenzai Sushi 🍣\nมีอะไรให้ช่วยไหมคะ?"
+                    deep_link = f"https://tenzai-order.ap.ngrok.io/customer_webapp.html?platform=LINE&user_id={user_id}"
+                    messages = [
+                        {"type": "text", "text": response_text},
+                        {
+                            "type": "template",
+                            "altText": "สั่งอาหาร",
+                            "template": {
+                                "type": "buttons",
+                                "text": "สั่งอาหารได้เลยค่ะ!",
+                                "actions": [
+                                    {
+                                        "type": "uri",
+                                        "label": "🍜 สั่งอาหาร",
+                                        "uri": deep_link
+                                    }
+                                ]
+                            }
                         }
-                    })
+                    ]
+                
                 elif intent in ["ai_complex", "ai_fallback"]:
                     # Use AI for complex queries
-                    ai_response = await get_ai_response(message_text, user_id)
-                    messages.append({
-                        "type": "text",
-                        "text": ai_response
-                    })
+                    response_text = await get_ai_response(message_text, user_id)
+                    messages = [{"type": "text", "text": response_text}]
                 else:
-                    # Default greeting
-                    messages.append({
-                        "type": "text", 
-                        "text": "สวัสดีค่ะ! ยินดีต้อนรับสู่ Tenzai Sushi 🍣"
-                    })
+                    # Default fallback
+                    response_text = FAQ_RESPONSES.get("greeting", "สวัสดีค่ะ! ยินดีต้อนรับสู่ Tenzai Sushi 🍣")
+                    messages = [{"type": "text", "text": response_text}]
                 
                 # Send reply
                 success = await send_line_message(reply_token, messages)
                 if success:
                     print(f"✅ Replied to {user_id}")
+                    
+                    # Log conversation (matching original behavior)
+                    try:
+                        conversation_data = {
+                            "line_user_id": f"LINE_{user_id}",
+                            "message_text": message_text,
+                            "response_text": response_text or "ปุ่มและข้อความ"
+                        }
+                        await supabase_request("POST", "conversations", conversation_data)
+                        print(f"📝 Logged conversation for LINE_{user_id}")
+                    except Exception as e:
+                        print(f"⚠️ Failed to log conversation: {e}")
                 else:
                     print(f"❌ Failed to reply to {user_id}")
         
