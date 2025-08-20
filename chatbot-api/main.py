@@ -31,7 +31,7 @@ from services.ai_service import (
     get_ai_response, classify_intent
 )
 from services.notification_service import (
-    send_order_confirmation
+    send_order_confirmation, send_staff_notification
 )
 
 # Load .env file
@@ -89,6 +89,10 @@ async def favicon():
 @app.get("/admin/edit-menu")
 async def admin_menu():
     return FileResponse(os.path.join(static_dir, "edit_menu_dashboard-admin.html"))
+
+@app.get("/admin/staff-orders.html")
+async def staff_orders():
+    return FileResponse(os.path.join(static_dir, "admin", "staff-orders.html"))
 
 # ========== Health Check ==========
 @app.get("/health")
@@ -295,7 +299,17 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         
         print(f"✅ Order created successfully: {order_number}")
         
-        # Send confirmation notification in background
+        # Send staff notification (CRITICAL - immediate alert)
+        background_tasks.add_task(
+            send_staff_notification,
+            order_number=order_number,
+            customer_name=name,
+            customer_phone=phone,
+            total_amount=total_amount,
+            items=validated_items  # Send detailed items list
+        )
+        
+        # Send confirmation notification to customer
         background_tasks.add_task(
             send_order_confirmation,
             order_number=order_number,
@@ -304,7 +318,8 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
             platform=platform,
             platform_user_id=platform_user_id,
             total_amount=total_amount,
-            items_count=items_count
+            items_count=items_count,
+            items_list=validated_items
         )
         
         return {
@@ -319,6 +334,48 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
     except Exception as e:
         print(f"❌ Order creation error: {e}")
         raise HTTPException(status_code=500, detail=f"Order creation failed: {str(e)}")
+
+@app.get("/api/orders/today")
+async def get_today_orders():
+    """Get all orders for today (for staff dashboard)"""
+    try:
+        from datetime import date, datetime
+        today = date.today()
+        
+        print(f"🔍 Getting orders for date: {today}")
+        
+        # Query recent orders (last 24 hours) with customer and items data
+        # Using broader query first to check what's available
+        query = "orders?order=created_at.desc&limit=50&select=*,order_items(quantity,unit_price,total_price,menu_name,notes)"
+        all_orders = await supabase_request("GET", query, use_service_key=False)
+        
+        if not all_orders:
+            all_orders = []
+        
+        # Filter orders for today (client-side filtering as fallback)
+        today_orders = []
+        today_str = today.isoformat()
+        
+        for order in all_orders:
+            order_date = order.get("created_at", "")
+            if order_date.startswith(today_str):
+                today_orders.append(order)
+        
+        print(f"📊 Found {len(all_orders)} total orders, {len(today_orders)} today")
+        
+        return {
+            "orders": today_orders,
+            "date": today_str,
+            "total_count": len(today_orders),
+            "debug_info": {
+                "total_orders_found": len(all_orders),
+                "sample_dates": [order.get("created_at", "")[:10] for order in all_orders[:5]]
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting today's orders: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get today's orders")
 
 @app.get("/api/orders/{order_number}")
 async def get_order_status(order_number: str):
@@ -375,6 +432,64 @@ async def get_order_status(order_number: str):
         print(f"❌ Error getting order status: {e}")
         raise HTTPException(status_code=500, detail="Failed to get order status")
 
+@app.patch("/api/orders/{order_number}/status")
+async def update_order_status(order_number: str, request: Request):
+    """Update order status (for staff dashboard)"""
+    try:
+        data = await request.json()
+        new_status = data.get("status")
+        
+        if not new_status:
+            raise HTTPException(status_code=400, detail="Status is required")
+        
+        valid_statuses = ["pending", "confirmed", "preparing", "ready", "completed", "cancelled"]
+        if new_status not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+        
+        # Update order status
+        update_data = {"status": new_status}
+        result = await supabase_request("PATCH", f"orders?order_number=eq.{order_number}", update_data)
+        
+        print(f"✅ Updated order {order_number} status to {new_status}")
+        
+        return {
+            "success": True,
+            "order_number": order_number,
+            "new_status": new_status,
+            "message": f"Order status updated to {new_status}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error updating order status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update order status")
+
+@app.post("/api/staff/notifications")
+async def create_staff_notification(request: Request):
+    """Create staff notification record"""
+    try:
+        data = await request.json()
+        
+        notification_data = {
+            "order_number": data.get("order_number"),
+            "notification_type": data.get("notification_type", "new_order"),
+            "message": data.get("message", ""),
+            "sent_at": datetime.now().isoformat(),
+            "status": data.get("status", "sent")
+        }
+        
+        result = await supabase_request("POST", "staff_notifications", notification_data)
+        
+        return {
+            "success": True,
+            "message": "Staff notification logged"
+        }
+        
+    except Exception as e:
+        print(f"❌ Error creating staff notification: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create staff notification")
+
 # ========== LINE Webhook ==========
 @app.post("/webhook/line")
 async def line_webhook(request: Request, background_tasks: BackgroundTasks):
@@ -403,7 +518,50 @@ async def line_webhook(request: Request, background_tasks: BackgroundTasks):
         
         # Process each event
         for event in events:
-            if event["type"] == "message" and event["message"]["type"] == "text":
+            # Handle postback events (staff buttons)
+            if event["type"] == "postback":
+                reply_token = event["replyToken"]
+                user_id = event["source"]["userId"]
+                postback_data = event["postback"]["data"]
+                
+                print(f"📞 Postback from {user_id}: {postback_data}")
+                
+                # Parse postback data (action=accept_order&order=T123456)
+                if "action=accept_order" in postback_data:
+                    order_number = postback_data.split("order=")[1] if "order=" in postback_data else ""
+                    if order_number:
+                        # Update order status to confirmed
+                        try:
+                            update_data = {"status": "confirmed"}
+                            await supabase_request("PATCH", f"orders?order_number=eq.{order_number}", update_data)
+                            
+                            reply_message = {
+                                "type": "text",
+                                "text": f"✅ รับออเดอร์ #{order_number} แล้ว!\nสถานะ: ยืนยันออเดอร์"
+                            }
+                            await send_line_message(reply_token, [reply_message])
+                            print(f"✅ Order {order_number} accepted by staff")
+                        except Exception as e:
+                            print(f"❌ Error accepting order: {e}")
+                
+                elif "action=reject_order" in postback_data:
+                    order_number = postback_data.split("order=")[1] if "order=" in postback_data else ""
+                    if order_number:
+                        # Update order status to cancelled
+                        try:
+                            update_data = {"status": "cancelled"}
+                            await supabase_request("PATCH", f"orders?order_number=eq.{order_number}", update_data)
+                            
+                            reply_message = {
+                                "type": "text",
+                                "text": f"❌ ปฏิเสธออเดอร์ #{order_number}\nสถานะ: ยกเลิกออเดอร์"
+                            }
+                            await send_line_message(reply_token, [reply_message])
+                            print(f"❌ Order {order_number} rejected by staff")
+                        except Exception as e:
+                            print(f"❌ Error rejecting order: {e}")
+            
+            elif event["type"] == "message" and event["message"]["type"] == "text":
                 # Handle text message
                 reply_token = event["replyToken"]
                 user_id = event["source"]["userId"]
@@ -510,3 +668,4 @@ if __name__ == "__main__":
     
     # Run on standard port 8000
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    

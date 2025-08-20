@@ -14,6 +14,7 @@ SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN", "")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET", "")
+STAFF_LINE_ID = os.getenv("STAFF_LINE_ID", "")  # Staff LINE user ID for notifications
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 PORT = int(os.getenv("PORT", 8000))
 
