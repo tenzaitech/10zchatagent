@@ -982,10 +982,8 @@
                 
                 console.log('Sending order to API:', orderData);
                 
-                // Send to Python API endpoint via ngrok
-                const API_BASE_URL = window.location.hostname.includes('ngrok.io') 
-                    ? 'https://78f1130f2efc.ngrok.app' 
-                    : 'http://localhost:8000';
+                // Send to Python API endpoint (same origin)
+                const API_BASE_URL = ''; // Use relative path (same origin)
                 
                 console.log('Current hostname:', window.location.hostname);
                 console.log('Using API_BASE_URL:', API_BASE_URL);

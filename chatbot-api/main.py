@@ -10,7 +10,10 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import uvicorn
+import os
 from dotenv import load_dotenv
 
 # Import our modular services
@@ -58,8 +61,37 @@ app.add_middleware(
 
 print("🚀 Tenzai Chatbot API v2 initialized!")
 
-# ========== Health Check ==========
+# ========== Static Files & HTML Routes ==========
+# Get static files directory
+static_dir = os.path.join(os.path.dirname(__file__), "..", "webappadmin")
+
+# HTML pages routes
 @app.get("/")
+async def root():
+    return FileResponse(os.path.join(static_dir, "customer_webapp.html"))
+
+@app.get("/customer_webapp.html")
+async def customer_webapp():
+    return FileResponse(os.path.join(static_dir, "customer_webapp.html"))
+
+@app.get("/order-status.html") 
+async def order_status():
+    return FileResponse(os.path.join(static_dir, "order-status.html"))
+
+@app.get("/favicon.ico")
+async def favicon():
+    favicon_path = os.path.join(static_dir, "favicon.ico")
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path)
+    return {"status": "no favicon"}
+
+# Admin pages (optional)
+@app.get("/admin/edit-menu")
+async def admin_menu():
+    return FileResponse(os.path.join(static_dir, "edit_menu_dashboard-admin.html"))
+
+# ========== Health Check ==========
+@app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {"status": "ok", "service": "Tenzai Chatbot API", "timestamp": datetime.now().isoformat()}

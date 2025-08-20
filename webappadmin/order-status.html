@@ -384,19 +384,15 @@
             return '';
         }
         
-        // API Base URL detection with ngrok support
+        // API Base URL detection - use same origin (relative path)
         function getApiEndpoints() {
             const endpoints = [];
             
-            if (window.location.hostname.includes('ap.ngrok.io')) {
-                // We're on ngrok domain - use the correct ngrok API endpoint
-                endpoints.push('https://78f1130f2efc.ngrok.app'); // Current ngrok API tunnel
-                
-                // Try the same ngrok domain as fallback (in case API is also served there)
-                endpoints.push(window.location.origin);
-                
-            } else {
-                // Local development - API is on localhost
+            // Use relative path (same origin) as primary
+            endpoints.push('');
+            
+            // Fallback to localhost for local development
+            if (window.location.hostname === 'localhost') {
                 endpoints.push('http://localhost:8000');
             }
             
