@@ -1,6 +1,23 @@
 # 🚀 Tenzai Chatbot Setup Instructions
 
+> **Updated**: 20 สิงหาคม 2025 - ระบบ FastAPI ใหม่
+
 ## การเริ่มใช้งานระบบ
+
+### ขั้นตอน 0: Environment Setup
+```bash
+# Copy environment template
+cp chatbot-api/.env.example chatbot-api/.env
+
+# Edit with your actual credentials
+nano chatbot-api/.env
+```
+
+**Required credentials:**
+- Supabase URL และ service role key
+- LINE channel access token และ secret  
+- OpenRouter API key (optional สำหรับ AI responses)
+- ngrok auth token (ใน ngrok.yml)
 
 ### ขั้นตอน 1: เริ่ม Web App Server
 ```bash
@@ -48,12 +65,26 @@ ngrok จะสร้าง 2 tunnels:
 ## 🔗 URLs สำคัญ
 
 ### สำหรับลูกค้า (Customer)
-- **Web App**: `https://tenzai-order.ngrok.io/customer_webapp.html`
+- **Web App**: `https://tenzai-order.ap.ngrok.io/customer_webapp.html`
+- **Order Tracking**: `https://tenzai-order.ap.ngrok.io/order-status.html?order=ORDER_NUMBER`
 
 ### สำหรับ Admin/Developer  
 - **API**: `https://xxxxxxxx.ngrok.io` (จะเปลี่ยนทุกครั้งที่รัน ngrok ใหม่)
 - **API Health**: `https://xxxxxxxx.ngrok.io/` 
+- **Schema Inspector**: `https://xxxxxxxx.ngrok.io/api/schema/sample-data`
 - **ngrok Inspector**: `http://localhost:4040`
+
+## 🆕 New Features
+
+### Multi-Platform Support
+- **Platform IDs**: `LINE_{user_id}`, `FB_{user_id}`, `IG_{user_id}`, `WEB_{phone}`
+- **Deep Linking**: จาก chatbot ไปยัง web app พร้อม pre-filled data
+- **Customer Merging**: ใช้ phone number เป็น universal key
+
+### Order Confirmation
+- **LINE Push**: Flex Message notification พร้อม order details
+- **Order Tracking**: Real-time status page ที่ auto-refresh ทุก 30 วินาที
+- **Status Flow**: pending → confirmed → preparing → ready → completed
 
 ## ⚠️ สิ่งที่ต้องระวัง
 
