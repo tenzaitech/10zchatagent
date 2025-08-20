@@ -356,11 +356,30 @@
             return urlParams.get('order') || '';
         }
         
-        // API Base URL detection
-        function getApiBaseUrl() {
-            return window.location.hostname.includes('ngrok.io') 
-                ? 'https://tenzai-order.ap.ngrok.io' 
-                : 'http://localhost:8000';
+        // API Base URL detection with multiple fallbacks
+        function getApiEndpoints() {
+            const endpoints = [];
+            
+            if (window.location.hostname.includes('ngrok.io')) {
+                // If on ngrok, try different possible API endpoints in order of likelihood
+                endpoints.push(window.location.origin); // Same ngrok domain (if API is on same tunnel)
+                endpoints.push('https://tenzai-order.ap.ngrok.io'); // Known ngrok domain
+                
+                // Try different possible ngrok API endpoints that might exist
+                const currentDomain = window.location.hostname;
+                if (currentDomain !== 'tenzai-order.ap.ngrok.io') {
+                    // If we're on a different ngrok domain, try swapping it
+                    const possibleApiDomain = currentDomain.replace(/-webapp|-web|-app/, '-api');
+                    if (possibleApiDomain !== currentDomain) {
+                        endpoints.push(`https://${possibleApiDomain}`);
+                    }
+                }
+            }
+            
+            // Always try localhost as fallback (works for local testing)
+            endpoints.push('http://localhost:8000');
+            
+            return [...new Set(endpoints)]; // Remove duplicates
         }
         
         // Load order status
@@ -372,28 +391,65 @@
                 return;
             }
             
-            try {
-                console.log('Loading order:', orderNumber);
-                
-                const response = await fetch(`${getApiBaseUrl()}/api/orders/${orderNumber}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+            const endpoints = getApiEndpoints();
+            let lastError = null;
+            
+            console.log('Loading order:', orderNumber);
+            console.log('Trying endpoints:', endpoints);
+            
+            // Try each endpoint until one works
+            for (let i = 0; i < endpoints.length; i++) {
+                try {
+                    const apiUrl = endpoints[i];
+                    const fullUrl = `${apiUrl}/api/orders/${orderNumber}`;
+                    console.log(`Attempt ${i + 1}: ${fullUrl}`);
+                    
+                    // Create timeout controller
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+                    
+                    const response = await fetch(fullUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                        },
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    console.log(`Response ${i + 1} status:`, response.status);
+                    
+                    if (response.ok) {
+                        const order = await response.json();
+                        console.log('Order data:', order);
+                        displayOrder(order);
+                        
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('error').style.display = 'none';
+                        document.getElementById('orderContent').style.display = 'block';
+                        return; // Success! Exit function
+                    } else {
+                        const responseText = await response.text();
+                        console.warn(`Endpoint ${i + 1} failed:`, response.status, responseText.substring(0, 200));
+                        lastError = new Error(`HTTP ${response.status}: ${responseText.substring(0, 100)}`);
+                    }
+                } catch (error) {
+                    console.warn(`Endpoint ${i + 1} error:`, error.message);
+                    lastError = error;
                 }
-                
-                const order = await response.json();
-                displayOrder(order);
-                
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'none';
-                document.getElementById('orderContent').style.display = 'block';
-                
-            } catch (error) {
-                console.error('Error loading order:', error);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('orderContent').style.display = 'none';
             }
+            
+            // All endpoints failed
+            console.error('All endpoints failed. Last error:', lastError);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').innerHTML = `
+                <div>ไม่พบออเดอร์หรือเกิดข้อผิดพลาด</div>
+                <small>หมายเลขออเดอร์: ${orderNumber}</small><br>
+                <small>รายละเอียด: ${lastError ? lastError.message : 'Network error'}</small>
+            `;
+            document.getElementById('orderContent').style.display = 'none';
         }
         
         // Display order information
