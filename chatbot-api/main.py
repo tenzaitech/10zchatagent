@@ -167,6 +167,10 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         name = contact.get("name", "").strip()
         phone = contact.get("phone", "").strip()
         
+        # Extract platform info (for LINE orders from web app)
+        platform = order_data.get("platform", "WEB")
+        platform_user_id = order_data.get("platform_user_id", phone)
+        
         # Extract items (support both old and new formats)  
         items = order_data.get("cart", order_data.get("items", []))
         
@@ -177,12 +181,12 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         if not items or len(items) == 0:
             raise HTTPException(status_code=400, detail="At least one item is required")
         
-        # Create or find customer
+        # Create or find customer with correct platform
         customer_id = await find_or_create_customer(
             name=name, 
             phone=phone, 
-            platform="WEB",
-            platform_user_id=phone
+            platform=platform,
+            platform_user_id=platform_user_id
         )
         
         # Generate order number (matching original format)
@@ -265,8 +269,8 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
             order_number=order_number,
             customer_phone=phone,
             customer_name=name,
-            platform="WEB",
-            platform_user_id=phone,
+            platform=platform,
+            platform_user_id=platform_user_id,
             total_amount=total_amount,
             items_count=items_count
         )
@@ -299,15 +303,37 @@ async def get_order_status(order_number: str):
         
         order = orders[0]
         
-        # Calculate totals
-        items_total = sum(item.get('total_price', 0) for item in order.get('order_items', []))
+        # Transform items data for frontend
+        transformed_items = []
+        for item in order.get("order_items", []):
+            transformed_items.append({
+                "name": item.get("menus", {}).get("name", item.get("menu_name", "Unknown Item")),
+                "quantity": item.get("quantity", 1),
+                "unit_price": item.get("unit_price", 0),
+                "total_price": item.get("total_price", 0),
+                "notes": item.get("notes", "")
+            })
+        
+        # Create status timeline
+        status_timeline = [
+            {"status": "pending", "text": "รับออเดอร์แล้ว", "completed": True},
+            {"status": "confirmed", "text": "ยืนยันออเดอร์", "completed": order["status"] in ["confirmed", "preparing", "ready", "completed"]},
+            {"status": "preparing", "text": "กำลังเตรียมอาหาร", "completed": order["status"] in ["preparing", "ready", "completed"]},
+            {"status": "ready", "text": "เตรียมเสร็จแล้ว", "completed": order["status"] in ["ready", "completed"]},
+            {"status": "completed", "text": "เสร็จสิ้น", "completed": order["status"] == "completed"}
+        ]
         
         return {
             "order_number": order["order_number"],
             "status": order["status"],
+            "customer_name": order.get("customer_name", "N/A"),
+            "customer_phone": order.get("customer_phone", "N/A"),
             "total_amount": order["total_amount"], 
+            "payment_status": order.get("payment_status", "unpaid"),
+            "order_type": order.get("order_type", "pickup"),
             "created_at": order["created_at"],
-            "items": order.get("order_items", []),
+            "items": transformed_items,
+            "status_history": status_timeline,
             "notes": order.get("notes", "")
         }
         

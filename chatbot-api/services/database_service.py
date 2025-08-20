@@ -73,27 +73,44 @@ async def find_or_create_customer(name: str, phone: str, platform: str = "WEB", 
     """Smart customer management - find existing or create new with proper platform ID"""
     try:
         print(f"🔍 Processing customer: name={name}, phone={phone}, platform={platform}")
+        platform_id = generate_platform_id(platform, platform_user_id or phone)
         
-        # Step 1: Try to find existing customer by phone (universal key)
-        existing_query = f"customers?phone=eq.{phone}&select=id,line_user_id&limit=1"
-        existing_customers = await supabase_request("GET", existing_query, use_service_key=False)
+        # Step 1: For LINE/FB/IG, try to find by platform_user_id first (more reliable)
+        if platform != "WEB" and platform_user_id:
+            platform_query = f"customers?line_user_id=eq.{platform_id}&select=id,line_user_id,phone&limit=1"
+            platform_customers = await supabase_request("GET", platform_query, use_service_key=False)
+            
+            if platform_customers and len(platform_customers) > 0:
+                customer_id = platform_customers[0]["id"]
+                existing_phone = platform_customers[0]["phone"]
+                
+                # Update phone if it has changed
+                if existing_phone != phone:
+                    update_data = {"phone": phone, "display_name": name}
+                    await supabase_request("PATCH", f"customers?id=eq.{customer_id}", update_data)
+                    print(f"✅ Updated customer {customer_id} phone: {existing_phone} → {phone}")
+                else:
+                    print(f"✅ Found existing customer by platform ID: {customer_id}")
+                return customer_id
         
-        if existing_customers and len(existing_customers) > 0:
-            customer_id = existing_customers[0]["id"]
-            current_platform_id = existing_customers[0]["line_user_id"]
+        # Step 2: Try to find existing customer by phone (universal key)
+        phone_query = f"customers?phone=eq.{phone}&select=id,line_user_id&limit=1"
+        phone_customers = await supabase_request("GET", phone_query, use_service_key=False)
+        
+        if phone_customers and len(phone_customers) > 0:
+            customer_id = phone_customers[0]["id"]
+            current_platform_id = phone_customers[0]["line_user_id"]
             
             # Update platform ID if it's generic web ID and we have better info
             if current_platform_id.startswith("WEB_") and len(current_platform_id) < 15 and platform != "WEB":
-                new_platform_id = generate_platform_id(platform, platform_user_id)
-                update_data = {"line_user_id": new_platform_id}
+                update_data = {"line_user_id": platform_id, "display_name": name}
                 await supabase_request("PATCH", f"customers?id=eq.{customer_id}", update_data)
-                print(f"✅ Updated customer {customer_id} platform ID: {current_platform_id} → {new_platform_id}")
+                print(f"✅ Updated customer {customer_id} platform ID: {current_platform_id} → {platform_id}")
             else:
-                print(f"✅ Found existing customer: {customer_id} ({current_platform_id})")
+                print(f"✅ Found existing customer by phone: {customer_id} ({current_platform_id})")
             return customer_id
         
-        # Step 2: Create new customer with proper platform ID
-        platform_id = generate_platform_id(platform, platform_user_id or phone)
+        # Step 3: Create new customer with proper platform ID
         customer_data = {
             "display_name": name,
             "phone": phone,

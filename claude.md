@@ -12,26 +12,30 @@
   1) ลดภาระตอบลูกค้าด้วยตนเอง  2) ทำให้สั่งอาหารได้สะดวกผ่าน 1 URL  3) ลดขั้นตอนรับออร์เดอร์  
 - **Channels:** LINE, Facebook Messenger, Instagram DM  
 - **Customer URL (หนึ่งเดียว):** `https://order.tenzaitech.online`
-- **Stack:** n8n (orchestrator), Supabase Free (DB/REST), Cloudflare Tunnel (webhook), OpenRouter (FAQ optional)
+- **Stack:** Python FastAPI (API server), Supabase Free (DB/REST), ngrok (webhook tunnel), OpenRouter (AI responses)
 - **Core Principles:**  
   - Read (เมนู/หมวด/ตั้งค่า) ผ่าน **anon key + RLS SELECT-only**  
-  - Write (orders/order_items/customers/conversations) ผ่าน **n8n + service role** เท่านั้น  
+  - Write (orders/order_items/customers/conversations) ผ่าน **FastAPI + service role** เท่านั้น  
   - ตรวจ **webhook signatures** ทุกครั้ง
+  - **Multi-platform customer identity** ด้วย phone-based merging
 
 ## Architecture (Text Diagram)
 ```
-LINE / FB / IG  →  Cloudflare Tunnel (webhooks)
-                 →  n8n (router + business logic)
+LINE / FB / IG  →  ngrok tunnel (webhooks)
+                 →  FastAPI (Python API server)
                  →  Supabase (public SELECT; server WRITE)
-                 ↘  OpenRouter (FAQ/intent – optional)
+                 ↘  OpenRouter (AI/FAQ responses)
 WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
-                 →  Checkout → n8n (/orders/create) → Supabase → Notify staff
+                 →  Checkout → FastAPI (/api/orders/create) → Supabase → LINE Push Notify
+                 →  Order Tracking → real-time status page
 ```
 
 ## Decision Log (Key Choices)
-- [Decided] ใช้ **Hybrid**: แชทพาเข้าหน้า WebOrder เดียว (LIFF/Messenger Webview) + fallback chat-only ถ้าเปิดลิงก์ไม่ได้  
-- [Decided] CLIENT อ่าน public เฉพาะ 3 ตาราง; การเขียนทั้งหมดวิ่งผ่าน n8n+service role  
+- [Decided] ใช้ **Hybrid**: แชทพาเข้าหน้า WebOrder เดียว (Deep linking) + fallback chat-only ถ้าเปิดลิงก์ไม่ได้  
+- [Decided] CLIENT อ่าน public เฉพาะ 3 ตาราง; การเขียนทั้งหมดวิ่งผ่าน FastAPI+service role  
 - [Decided] เก็บ `conversations` แบบ **summary สั้น** เพื่อลดขนาดบน Free plan
+- [Decided] **Platform ID System**: `LINE_{user_id}`, `FB_{user_id}`, `WEB_{phone}` สำหรับ multi-platform customer management
+- [Decided] **งดใช้ n8n** เปลี่ยนเป็น **Python FastAPI** เพื่อความเร็วและ memory efficiency
 
 ## Risks & Mitigations (Top-5)
 1) **Supabase Free pause / quota** → ตั้ง health-ping เบา ๆ + สรุปแชทแทนเก็บยาว  
@@ -41,23 +45,34 @@ WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
 5) **OpenRouter API limit/cost** → set max tokens + fallback basic responses + usage tracking
 
 ## Progress (Status)
-- Infra / DB / Admin / WebApp: ✅ พร้อมใช้งาน (จากข้อมูลล่าสุดของโปรเจกต์)
-- Chatbot Workflow (WF-A, WF-B): ⏳ รอ implement / import flow
-- **Last Updated:** 18 สิงหาคม 2025
-- **% Completion (rough):** Infra 100 / DB 100 / Admin 100 / WebApp 100 / Chatbot 0
+- Infra / DB / Admin / WebApp: ✅ พร้อมใช้งาน
+- Multi-Platform Customer Management: ✅ เสร็จสมบูรณ์
+- Order Confirmation System: ✅ เสร็จสมบูรณ์ (LINE Push + Tracking)
+- Real-time Order Tracking: ✅ เสร็จสมบูรณ์
+- Deep Linking & UX Flow: ✅ เสร็จสมบูรณ์
+- **Last Updated:** 20 สิงหาคม 2025
+- **% Completion (rough):** Infra 100 / DB 100 / WebApp 100 / Chatbot 85 / Core Features 90
 
 ## Next Tasks (Measurable)
-### Phase 1: Core Chatbot (Week 1)
-- [ ] WF-A: รับข้อความ + ปุ่ม "สั่งอาหาร" (เปิด webview) + ตอบ FAQ 3 หัวข้อ
-- [ ] WF-B: รับ order จาก WebOrder → validate → write DB → notify staff
-- [ ] ตั้ง RLS read-only 3 ตาราง + ปิดการเขียน anon ทุกตาราง write
-- [ ] Test webhook signatures สำหรับ LINE/FB/IG
+### Phase 1: Core Chatbot ✅ COMPLETED
+- [x] WF-A: รับข้อความ + ปุ่ม "สั่งอาหาร" (เปิด webview) + ตอบ FAQ + AI responses
+- [x] WF-B: รับ order จาก WebOrder → validate → write DB → notify customer
+- [x] ตั้ง RLS read-only 3 ตาราง + ปิดการเขียน anon ทุกตาราง write
+- [x] Multi-platform customer identity system (LINE/FB/IG/Web)
+- [x] Deep linking with pre-filled customer data
 
-### Phase 2: Enhanced Features (Week 2)
-- [ ] Order status tracking + notification ลูกค้า
+### Phase 2: Enhanced Features ✅ COMPLETED
+- [x] Order status tracking + notification ลูกค้า (Real-time page + LINE push)
+- [x] Order confirmation with Flex Message UI
+- [x] Platform-aware customer management
+- [x] Error handling + retry logic สำหรับ failed orders
+
+### Phase 3: Remaining Tasks (Optional)
+- [ ] Staff notification system (LINE push to staff)
 - [ ] Admin dashboard สำหรับดู orders real-time
+- [ ] Facebook/Instagram webhook implementation
 - [ ] Basic analytics: orders/day, popular items
-- [ ] Error handling + retry logic สำหรับ failed orders
+- [ ] Payment integration (QR Code/PromptPay)
 
 ### Phase 3: Production Ready (Week 3)
 - [ ] Load testing + performance optimization
