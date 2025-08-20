@@ -207,6 +207,38 @@ async def send_order_confirmation(order_number: str, customer_phone: str, custom
                                 "color": "#666666",
                                 "wrap": True,
                                 "margin": "lg"
+                            },
+                            {"type": "separator", "margin": "lg"},
+                            {
+                                "type": "text",
+                                "text": "💳 ชำระเงิน:",
+                                "size": "sm",
+                                "weight": "bold",
+                                "margin": "lg"
+                            },
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "contents": [
+                                    {"type": "text", "text": "บัญชี:", "size": "xs", "color": "#666666", "flex": 2},
+                                    {"type": "text", "text": "012-3-45678-9 (พร้อมเพย์)", "size": "xs", "flex": 5, "weight": "bold"}
+                                ]
+                            },
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "contents": [
+                                    {"type": "text", "text": "ชื่อ:", "size": "xs", "color": "#666666", "flex": 2},
+                                    {"type": "text", "text": "Tenzai Sushi", "size": "xs", "flex": 5}
+                                ]
+                            },
+                            {
+                                "type": "text",
+                                "text": "📝 โอนแล้วส่งสลิปใน LINE นี้เลยค่ะ",
+                                "size": "xs",
+                                "color": "#FF6B35",
+                                "wrap": True,
+                                "margin": "sm"
                             }
                         ]
                     }

@@ -1,5 +1,26 @@
+# FastAPI and web server
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+
+# HTTP requests and file uploads
 httpx==0.25.2
-python-dotenv==1.0.0
+requests==2.31.0
 python-multipart==0.0.6
+
+# Database
+supabase==2.3.0
+
+# LINE Messaging API
+line-bot-sdk==3.5.0
+
+# OpenAI/OpenRouter
+openai==1.3.7
+
+# Environment variables
+python-dotenv==1.0.0
+
+# JSON and data handling
+pydantic==2.5.0
+
+# Production server
+gunicorn==21.2.0
