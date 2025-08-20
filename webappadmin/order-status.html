@@ -286,6 +286,20 @@
             <div>กำลังโหลด...</div>
         </div>
 
+        <div id="orderInput" class="order-card" style="display: none;">
+            <h3 style="margin-bottom: 20px; text-align: center;">ใส่หมายเลขออเดอร์</h3>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="orderNumberInput" placeholder="เช่น T250820191059" 
+                       style="flex: 1; padding: 12px; border: 2px solid #FF6B35; border-radius: 8px; font-size: 16px;">
+                <button onclick="searchOrder()" style="padding: 12px 20px; background: #FF6B35; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                    ค้นหา
+                </button>
+            </div>
+            <div style="text-align: center; color: #6c757d; font-size: 14px;">
+                หมายเลขออเดอร์ขึ้นต้นด้วย T ตามด้วยวันที่และเวลา
+            </div>
+        </div>
+
         <div id="error" class="error" style="display: none;">
             <div>ไม่พบออเดอร์หรือเกิดข้อผิดพลาด</div>
         </div>
@@ -345,22 +359,36 @@
         
         // Get order number from URL
         function getOrderNumber() {
+            // Try URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            const orderFromParam = urlParams.get('order');
+            if (orderFromParam) {
+                return orderFromParam;
+            }
+            
+            // Try path-based approach
             const pathParts = window.location.pathname.split('/');
             const lastPart = pathParts[pathParts.length - 1];
             if (lastPart && lastPart !== 'order-status.html') {
                 return lastPart;
             }
             
-            // Fallback to URL parameter
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('order') || '';
+            // Try hash-based approach
+            if (window.location.hash) {
+                const hashOrder = window.location.hash.substring(1);
+                if (hashOrder.startsWith('T')) {
+                    return hashOrder;
+                }
+            }
+            
+            return '';
         }
         
         // API Base URL detection with ngrok support
         function getApiEndpoints() {
             const endpoints = [];
             
-            if (window.location.hostname.includes('ngrok.io')) {
+            if (window.location.hostname.includes('ap.ngrok.io')) {
                 // We're on ngrok domain - use the correct ngrok API endpoint
                 endpoints.push('https://78f1130f2efc.ngrok.app'); // Current ngrok API tunnel
                 
@@ -375,12 +403,23 @@
             return endpoints;
         }
         
+        // Search order function for manual input
+        function searchOrder() {
+            const inputOrder = document.getElementById('orderNumberInput').value.trim().toUpperCase();
+            if (inputOrder) {
+                orderNumber = inputOrder;
+                localStorage.setItem('lastOrderNumber', orderNumber);
+                document.getElementById('orderInput').style.display = 'none';
+                document.getElementById('loading').style.display = 'block';
+                loadOrderStatus();
+            }
+        }
+
         // Load order status
         async function loadOrderStatus() {
             if (!orderNumber) {
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('error').innerHTML = '<div>กรุณาระบุหมายเลขออเดอร์ในลิงก์</div>';
+                document.getElementById('orderInput').style.display = 'block';
                 return;
             }
             
@@ -448,29 +487,25 @@
             console.error('All endpoints failed. Last error:', lastError);
             document.getElementById('loading').style.display = 'none';
             document.getElementById('error').style.display = 'block';
-            document.getElementById('error').innerHTML = `
-                <div>ไม่พบออเดอร์หรือเกิดข้อผิดพลาด</div>
-                <small>หมายเลขออเดอร์: ${orderNumber}</small><br>
-                <small>รายละเอียด: ${lastError ? lastError.message : 'Network error'}</small><br><br>
-                <div style="margin-top: 15px;">
-                    <strong>ทางแก้ไขปัญหา:</strong><br>
-                    ${window.location.protocol === 'https:' ? 
-                        '<small>⚠️ หน้านี้ใช้ HTTPS แต่ API server ใช้ HTTP (localhost) browser จึง block การเชื่อมต่อ</small><br>' +
-                        '<small>💡 <strong>แก้ไข:</strong> เปิดหน้านี้ใน localhost แทน หรือตั้ง API server ให้รองรับ HTTPS</small><br><br>' +
-                        '<button onclick="window.open(\\`http://localhost:3001/webappadmin/order-status.html?order=${orderNumber}\\`, \\'_blank\\')" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📱 เปิดใน localhost</button>' 
-                        : 
-                        '<small>กด F12 → Console เพื่อดูข้อมูลการเชื่อมต่อ</small><br><br>'
-                    }
-                    <button onclick="window.open('http://localhost:8000/api/orders/${orderNumber}', '_blank')" 
-                            style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">
-                        ทดสอบ API โดยตรง
-                    </button>
-                    <button onclick="loadOrderStatus()" 
-                            style="padding: 8px 15px; background: #ffc107; color: black; border: none; border-radius: 5px; cursor: pointer;">
-                        ลองใหม่
-                    </button>
-                </div>
-            `;
+            let errorHtml = '<div>ไม่พบออเดอร์หรือเกิดข้อผิดพลาด</div>';
+            errorHtml += '<small>หมายเลขออเดอร์: ' + orderNumber + '</small><br>';
+            errorHtml += '<small>รายละเอียด: ' + (lastError ? lastError.message : 'Network error') + '</small><br><br>';
+            errorHtml += '<div style="margin-top: 15px;">';
+            errorHtml += '<strong>ทางแก้ไขปัญหา:</strong><br>';
+            
+            if (window.location.protocol === 'https:') {
+                errorHtml += '<small>⚠️ หน้านี้ใช้ HTTPS แต่ API server ใช้ HTTP (localhost) browser จึง block การเชื่อมต่อ</small><br>';
+                errorHtml += '<small>💡 <strong>แก้ไข:</strong> เปิดหน้านี้ใน localhost แทน หรือตั้ง API server ให้รองรับ HTTPS</small><br><br>';
+                errorHtml += '<button onclick="window.open(\'http://localhost:3001/webappadmin/order-status.html?order=' + orderNumber + '\', \'_blank\')" style="padding: 8px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">📱 เปิดใน localhost</button>';
+            } else {
+                errorHtml += '<small>กด F12 → Console เพื่อดูข้อมูลการเชื่อมต่อ</small><br><br>';
+            }
+            
+            errorHtml += '<button onclick="window.open(\'http://localhost:8000/api/orders/' + orderNumber + '\', \'_blank\')" style="padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-right: 10px;">ทดสอบ API โดยตรง</button>';
+            errorHtml += '<button onclick="loadOrderStatus()" style="padding: 8px 15px; background: #ffc107; color: black; border: none; border-radius: 5px; cursor: pointer;">ลองใหม่</button>';
+            errorHtml += '</div>';
+            
+            document.getElementById('error').innerHTML = errorHtml;
             document.getElementById('orderContent').style.display = 'none';
         }
         
@@ -535,11 +570,33 @@
         document.addEventListener('DOMContentLoaded', function() {
             orderNumber = getOrderNumber();
             console.log('Order number:', orderNumber);
+            console.log('Current hostname:', window.location.hostname);
+            console.log('Full URL:', window.location.href);
+            
+            // Add enter key support for order input
+            const orderInput = document.getElementById('orderNumberInput');
+            if (orderInput) {
+                orderInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchOrder();
+                    }
+                });
+                
+                // Pre-fill with last order if available
+                const lastOrder = localStorage.getItem('lastOrderNumber');
+                if (lastOrder && !orderNumber) {
+                    orderInput.value = lastOrder;
+                }
+            }
             
             loadOrderStatus();
             
-            // Auto-refresh every 30 seconds
-            refreshInterval = setInterval(loadOrderStatus, 30000);
+            // Auto-refresh every 30 seconds (only if order is loaded)
+            refreshInterval = setInterval(() => {
+                if (orderNumber) {
+                    loadOrderStatus();
+                }
+            }, 30000);
         });
         
         // Clean up interval on page unload

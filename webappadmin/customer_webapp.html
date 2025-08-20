@@ -1016,11 +1016,16 @@
                 
                 console.log('API Parsed Result:', result);
                 
-                if (response.ok && (result.status === 'success' || response.status === 200)) {
+                if (response.ok && (result.success === true || result.status === 'success' || response.status === 200)) {
                     // Success
                     const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                    const orderId = result.order_id || 'TMP' + Date.now();
+                    const orderId = result.order_number || result.order_id || 'TMP' + Date.now();
                     const totalPrice = result.total_price || totalAmount;
+                    
+                    // Save order number to localStorage for tracking page
+                    if (result.order_number) {
+                        localStorage.setItem('lastOrderNumber', result.order_number);
+                    }
                     
                     showStatus(`✅ สั่งอาหารสำเร็จ! ออเดอร์ #${orderId}<br>` +
                               `ยอดรวม: ${totalPrice} บาท<br>` +
@@ -1028,13 +1033,14 @@
                     
                     // Optional: Show detailed success modal with order tracking
                     setTimeout(() => {
-                        const trackingUrl = `${window.location.origin}/order-status.html?order=${result.order_id}`;
+                        const actualOrderId = result.order_number || result.order_id;
+                        const trackingUrl = result.tracking_url || `${window.location.origin}/order-status.html?order=${actualOrderId}`;
                         const confirmResult = confirm(`🎉 สั่งอาหารเรียบร้อย!\n\n` +
-                              `📋 ออเดอร์: #${result.order_id}\n` +
+                              `📋 ออเดอร์: #${actualOrderId}\n` +
                               `👤 ชื่อ: ${customerName}\n` +
                               `📞 เบอร์: ${cleanPhone}\n` +
-                              `💰 ยอดรวม: ${result.total_price} บาท\n` +
-                              `📦 จำนวนรายการ: ${result.items_count}\n\n` +
+                              `💰 ยอดรวม: ${totalPrice} บาท\n` +
+                              `📦 จำนวนรายการ: ${cart.length}\n\n` +
                               `✨ ขอบคุณที่ใช้บริการ Tenzai Sushi\n` +
                               `ทางร้านจะติดต่อกลับเร็วๆ นี้ค่ะ\n\n` +
                               `กดตกลงเพื่อดูสถานะออเดอร์`);
