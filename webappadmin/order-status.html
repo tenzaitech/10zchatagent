@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สถานะออเดอร์ - Tenzai Sushi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            color: #212529;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #FF6B35 0%, #e55a2b 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
+        }
+        
+        .logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: white;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #FF6B35;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .order-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .order-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #FF6B35;
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #FFF8F3;
+            border-radius: 10px;
+            border: 2px solid #FFE4D6;
+        }
+        
+        .status-timeline {
+            margin: 30px 0;
+        }
+        
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        .timeline-item:not(:last-child):after {
+            content: '';
+            position: absolute;
+            left: 17px;
+            top: 35px;
+            width: 2px;
+            height: 25px;
+            background: #dee2e6;
+        }
+        
+        .timeline-item.completed:not(:last-child):after {
+            background: #28a745;
+        }
+        
+        .timeline-icon {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 14px;
+            font-weight: bold;
+            background: #dee2e6;
+            color: #6c757d;
+        }
+        
+        .timeline-item.completed .timeline-icon {
+            background: #28a745;
+            color: white;
+        }
+        
+        .timeline-item.current .timeline-icon {
+            background: #FF6B35;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .timeline-text {
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        .timeline-item.completed .timeline-text {
+            color: #28a745;
+        }
+        
+        .timeline-item.current .timeline-text {
+            color: #FF6B35;
+            font-weight: bold;
+        }
+        
+        .order-details {
+            margin-top: 20px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 500;
+            color: #6c757d;
+        }
+        
+        .detail-value {
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .items-list {
+            margin-top: 20px;
+        }
+        
+        .item-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        
+        .item-name {
+            font-weight: 500;
+            flex: 1;
+        }
+        
+        .item-qty {
+            color: #6c757d;
+            margin: 0 10px;
+        }
+        
+        .item-price {
+            font-weight: 600;
+            color: #FF6B35;
+        }
+        
+        .total-amount {
+            font-size: 20px;
+            font-weight: bold;
+            color: #FF6B35;
+            text-align: center;
+            margin-top: 20px;
+            padding: 15px;
+            background: #FFF8F3;
+            border-radius: 10px;
+        }
+        
+        .refresh-btn {
+            background: #FF6B35;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .refresh-btn:hover {
+            background: #e55a2b;
+            transform: translateY(-2px);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .auto-refresh {
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .payment-status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .payment-status.paid {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .payment-status.unpaid {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🍣</div>
+            <h1>สถานะออเดอร์</h1>
+            <p>ติดตามออเดอร์ของคุณ</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div>กำลังโหลด...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <div>ไม่พบออเดอร์หรือเกิดข้อผิดพลาด</div>
+        </div>
+
+        <div id="orderContent" style="display: none;">
+            <div class="order-card">
+                <div id="orderNumber" class="order-number"></div>
+                
+                <div class="status-timeline" id="statusTimeline">
+                    <!-- Timeline will be populated by JavaScript -->
+                </div>
+                
+                <div class="order-details">
+                    <div class="detail-row">
+                        <span class="detail-label">ชื่อ:</span>
+                        <span class="detail-value" id="customerName"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">เบอร์โทร:</span>
+                        <span class="detail-value" id="customerPhone"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">สถานะการชำระ:</span>
+                        <span class="detail-value">
+                            <span id="paymentStatus" class="payment-status"></span>
+                        </span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">ประเภท:</span>
+                        <span class="detail-value" id="orderType"></span>
+                    </div>
+                </div>
+
+                <div class="items-list">
+                    <h3 style="margin-bottom: 15px;">รายการอาหาร:</h3>
+                    <div id="itemsList">
+                        <!-- Items will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="total-amount" id="totalAmount"></div>
+                
+                <button class="refresh-btn" onclick="loadOrderStatus()">
+                    รีเฟรช
+                </button>
+                
+                <div class="auto-refresh">
+                    อัปเดตอัตโนมัติทุก 30 วินาที
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let orderNumber = '';
+        let refreshInterval = null;
+        
+        // Get order number from URL
+        function getOrderNumber() {
+            const pathParts = window.location.pathname.split('/');
+            const lastPart = pathParts[pathParts.length - 1];
+            if (lastPart && lastPart !== 'order-status.html') {
+                return lastPart;
+            }
+            
+            // Fallback to URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('order') || '';
+        }
+        
+        // API Base URL detection
+        function getApiBaseUrl() {
+            return window.location.hostname.includes('ngrok.io') 
+                ? 'https://78f1130f2efc.ngrok.app' 
+                : 'http://localhost:8000';
+        }
+        
+        // Load order status
+        async function loadOrderStatus() {
+            if (!orderNumber) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').innerHTML = '<div>กรุณาระบุหมายเลขออเดอร์ในลิงก์</div>';
+                return;
+            }
+            
+            try {
+                console.log('Loading order:', orderNumber);
+                
+                const response = await fetch(`${getApiBaseUrl()}/api/orders/${orderNumber}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const order = await response.json();
+                displayOrder(order);
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('orderContent').style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading order:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('orderContent').style.display = 'none';
+            }
+        }
+        
+        // Display order information
+        function displayOrder(order) {
+            document.getElementById('orderNumber').textContent = `#${order.order_number}`;
+            document.getElementById('customerName').textContent = order.customer_name;
+            document.getElementById('customerPhone').textContent = order.customer_phone;
+            document.getElementById('totalAmount').textContent = `ยอดรวม: ${order.total_amount.toLocaleString()} บาท`;
+            
+            // Payment status
+            const paymentStatusEl = document.getElementById('paymentStatus');
+            paymentStatusEl.textContent = order.payment_status === 'paid' ? 'ชำระแล้ว' : 'รอชำระ';
+            paymentStatusEl.className = `payment-status ${order.payment_status}`;
+            
+            // Order type
+            document.getElementById('orderType').textContent = order.order_type === 'pickup' ? 'รับที่ร้าน' : 'จัดส่ง';
+            
+            // Status timeline
+            const timeline = document.getElementById('statusTimeline');
+            timeline.innerHTML = '';
+            
+            order.status_history.forEach((status, index) => {
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                
+                if (status.completed) {
+                    item.classList.add('completed');
+                }
+                
+                // Check if this is the current status
+                if (order.status === status.status || 
+                    (status.status === 'pending' && order.status === 'pending')) {
+                    item.classList.add('current');
+                }
+                
+                item.innerHTML = `
+                    <div class="timeline-icon">✓</div>
+                    <div class="timeline-text">${status.text}</div>
+                `;
+                
+                timeline.appendChild(item);
+            });
+            
+            // Items list
+            const itemsList = document.getElementById('itemsList');
+            itemsList.innerHTML = '';
+            
+            order.items.forEach(item => {
+                const itemRow = document.createElement('div');
+                itemRow.className = 'item-row';
+                itemRow.innerHTML = `
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-qty">x${item.quantity}</div>
+                    <div class="item-price">${item.total_price.toLocaleString()} บาท</div>
+                `;
+                itemsList.appendChild(itemRow);
+            });
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            orderNumber = getOrderNumber();
+            console.log('Order number:', orderNumber);
+            
+            loadOrderStatus();
+            
+            // Auto-refresh every 30 seconds
+            refreshInterval = setInterval(loadOrderStatus, 30000);
+        });
+        
+        // Clean up interval on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

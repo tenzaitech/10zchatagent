@@ -230,6 +230,175 @@ async def send_line_message(reply_token: str, messages: List[Dict]):
         print(f"❌ Error sending LINE message: {e}")
         return False
 
+async def send_line_push_message(user_id: str, messages: List[Dict]):
+    """Send push message to specific LINE user (for order confirmation)"""
+    try:
+        if not LINE_CHANNEL_ACCESS_TOKEN:
+            print("❌ LINE_CHANNEL_ACCESS_TOKEN not set")
+            return False
+        
+        # Remove LINE_ prefix if present
+        clean_user_id = user_id.replace("LINE_", "") if user_id.startswith("LINE_") else user_id
+        
+        headers = {
+            "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "to": clean_user_id,
+            "messages": messages
+        }
+        
+        print(f"📤 Sending LINE push to {clean_user_id}: {len(messages)} message(s)")
+        
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api.line.me/v2/bot/message/push",
+                headers=headers,
+                json=payload
+            )
+            
+        if response.status_code == 200:
+            print("✅ LINE push message sent successfully")
+            return True
+        else:
+            print(f"❌ LINE push error: {response.status_code}")
+            print(f"   Response: {response.text}")
+            return False
+            
+    except httpx.TimeoutException:
+        print("❌ LINE push API timeout")
+        return False
+    except Exception as e:
+        print(f"❌ Error sending LINE push: {e}")
+        return False
+
+async def send_order_confirmation(order_number: str, customer_phone: str, customer_name: str, 
+                                platform: str, platform_user_id: str, total_amount: float, items_count: int):
+    """Send order confirmation to customer via appropriate platform"""
+    try:
+        print(f"🔔 Sending order confirmation: {order_number} to {platform}_{platform_user_id}")
+        
+        # Create confirmation message
+        confirmation_text = f"""🎉 ยืนยันการสั่งอาหาร
+        
+📋 ออเดอร์: #{order_number}
+👤 ชื่อ: {customer_name}
+📞 เบอร์: {customer_phone}
+💰 ยอดรวม: {total_amount:,.0f} บาท
+📦 จำนวนรายการ: {items_count}
+
+✨ ขอบคุณที่ใช้บริการ Tenzai Sushi
+ทางร้านจะติดต่อกลับเร็วๆ นี้ค่ะ"""
+
+        if platform == "LINE" and platform_user_id:
+            # Send LINE push message with Flex Message
+            flex_message = {
+                "type": "flex",
+                "altText": f"ยืนยันออเดอร์ #{order_number}",
+                "contents": {
+                    "type": "bubble",
+                    "header": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "🎉 ยืนยันการสั่งอาหาร",
+                                "weight": "bold",
+                                "color": "#FF6B35",
+                                "size": "lg"
+                            }
+                        ],
+                        "backgroundColor": "#FFF8F3"
+                    },
+                    "body": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "contents": [
+                                    {"type": "text", "text": "ออเดอร์:", "size": "sm", "color": "#666666", "flex": 2},
+                                    {"type": "text", "text": f"#{order_number}", "size": "sm", "wrap": True, "flex": 5, "weight": "bold"}
+                                ]
+                            },
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "contents": [
+                                    {"type": "text", "text": "ชื่อ:", "size": "sm", "color": "#666666", "flex": 2},
+                                    {"type": "text", "text": customer_name, "size": "sm", "wrap": True, "flex": 5}
+                                ]
+                            },
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "contents": [
+                                    {"type": "text", "text": "เบอร์:", "size": "sm", "color": "#666666", "flex": 2},
+                                    {"type": "text", "text": customer_phone, "size": "sm", "flex": 5}
+                                ]
+                            },
+                            {
+                                "type": "box",
+                                "layout": "baseline",
+                                "contents": [
+                                    {"type": "text", "text": "ยอดรวม:", "size": "sm", "color": "#666666", "flex": 2},
+                                    {"type": "text", "text": f"{total_amount:,.0f} บาท", "size": "sm", "flex": 5, "weight": "bold", "color": "#FF6B35"}
+                                ]
+                            },
+                            {"type": "separator", "margin": "lg"},
+                            {
+                                "type": "text",
+                                "text": "✨ ขอบคุณที่ใช้บริการ Tenzai Sushi\nทางร้านจะติดต่อกลับเร็วๆ นี้ค่ะ",
+                                "size": "sm",
+                                "color": "#666666",
+                                "wrap": True,
+                                "margin": "lg"
+                            }
+                        ]
+                    }
+                }
+            }
+            
+            # Add order tracking button
+            tracking_button = {
+                "type": "template",
+                "altText": "ติดตามออเดอร์",
+                "template": {
+                    "type": "buttons",
+                    "text": "ติดตามสถานะออเดอร์ของคุณ",
+                    "actions": [
+                        {
+                            "type": "uri",
+                            "label": "📋 ติดตามออเดอร์",
+                            "uri": f"https://tenzai-order.ap.ngrok.io/order-status.html?order={order_number}"
+                        }
+                    ]
+                }
+            }
+            
+            messages = [{"type": "text", "text": "🎉 สั่งอาหารเรียบร้อยแล้วค่ะ!"}, flex_message, tracking_button]
+            success = await send_line_push_message(platform_user_id, messages)
+            
+            if success:
+                print(f"✅ LINE confirmation sent to {platform_user_id}")
+            else:
+                print(f"⚠️ Failed to send LINE confirmation to {platform_user_id}")
+                
+        # TODO: Add Facebook/Instagram push notifications
+        elif platform == "FB":
+            print(f"📧 Facebook confirmation for {platform_user_id} (not implemented)")
+        elif platform == "IG":
+            print(f"📧 Instagram confirmation for {platform_user_id} (not implemented)")
+        else:
+            print(f"📧 Web order confirmation for {customer_phone} (EMAIL/SMS not implemented)")
+            
+    except Exception as e:
+        print(f"❌ Error sending order confirmation: {e}")
+
 def classify_intent(message_text: str) -> str:
     """Smart intent classification - FAQ vs AI vs Order"""
     text = message_text.lower()
@@ -423,8 +592,10 @@ async def line_webhook(request: Request):
                     response_text = FAQ_RESPONSES[intent]
                     messages = [{"type": "text", "text": response_text}]
                     
-                    # Add order button for relevant intents
+                    # Add order button for relevant intents with deep linking
                     if intent in ["order", "menu"]:
+                        # Create deep link with LINE user ID for pre-fill customer data
+                        deep_link = f"https://tenzai-order.ap.ngrok.io/customer_webapp.html?platform=LINE&user_id={user_id}"
                         messages.append({
                             "type": "template",
                             "altText": "สั่งอาหาร",
@@ -435,15 +606,16 @@ async def line_webhook(request: Request):
                                     {
                                         "type": "uri",
                                         "label": "🍜 สั่งอาหาร",
-                                        "uri": "https://tenzai-order.ap.ngrok.io/customer_webapp.html"
+                                        "uri": deep_link
                                     }
                                 ]
                             }
                         })
                 
                 elif intent == "greeting":
-                    # Simple greeting
+                    # Simple greeting with deep linking
                     response_text = "สวัสดีค่ะ! ยินดีต้อนรับสู่ Tenzai Sushi 🍣\nมีอะไรให้ช่วยไหมคะ?"
+                    deep_link = f"https://tenzai-order.ap.ngrok.io/customer_webapp.html?platform=LINE&user_id={user_id}"
                     messages = [
                         {"type": "text", "text": response_text},
                         {
@@ -456,7 +628,7 @@ async def line_webhook(request: Request):
                                     {
                                         "type": "uri",
                                         "label": "🍜 สั่งอาหาร",
-                                        "uri": "https://tenzai-order.ap.ngrok.io/customer_webapp.html"
+                                        "uri": deep_link
                                     }
                                 ]
                             }
@@ -464,9 +636,10 @@ async def line_webhook(request: Request):
                     ]
                 
                 elif intent in ["ai_complex", "ai_fallback"]:
-                    # AI Response for complex queries
+                    # AI Response for complex queries with deep linking
                     response_text = await get_ai_response(message_text, user_id)
                     messages = [{"type": "text", "text": response_text}]
+                    deep_link = f"https://tenzai-order.ap.ngrok.io/customer_webapp.html?platform=LINE&user_id={user_id}"
                     
                     # Always add order button for AI responses
                     messages.append({
@@ -479,15 +652,16 @@ async def line_webhook(request: Request):
                                 {
                                     "type": "uri",
                                     "label": "🍜 สั่งอาหาร",
-                                    "uri": "https://order.tenzaitech.online"
+                                    "uri": deep_link
                                 }
                             ]
                         }
                     })
                 
                 else:
-                    # Fallback for anything else
+                    # Fallback for anything else with deep linking
                     response_text = FALLBACK_MESSAGE
+                    deep_link = f"https://tenzai-order.ap.ngrok.io/customer_webapp.html?platform=LINE&user_id={user_id}"
                     messages = [
                         {"type": "text", "text": response_text},
                         {
@@ -500,7 +674,7 @@ async def line_webhook(request: Request):
                                     {
                                         "type": "uri",
                                         "label": "🍜 สั่งอาหาร", 
-                                        "uri": "https://tenzai-order.ap.ngrok.io/customer_webapp.html"
+                                        "uri": deep_link
                                     }
                                 ]
                             }
@@ -510,17 +684,19 @@ async def line_webhook(request: Request):
                 # Send reply
                 await send_line_message(reply_token, messages)
                 
-                # Log conversation (optional)
+                # Log conversation with improved platform tracking
                 try:
+                    platform_id = generate_platform_id("LINE", user_id)
                     conversation_data = {
-                        "line_user_id": user_id,
+                        "line_user_id": platform_id,  # Use proper platform ID
                         "message_text": message_text[:300],  # Limit length
                         "response_text": response_text[:300] if intent in FAQ_RESPONSES else "สั่งอาหาร", 
                         "created_at": datetime.now().isoformat()
                     }
                     await supabase_request("POST", "conversations", conversation_data)
+                    print(f"📝 Logged conversation for {platform_id}")
                 except Exception as e:
-                    print(f"Conversation logging error: {e}")
+                    print(f"⚠️ Conversation logging error: {e}")
         
         return {"status": "ok"}
         
@@ -528,12 +704,83 @@ async def line_webhook(request: Request):
         print(f"LINE webhook error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def generate_platform_id(platform: str, identifier: str = None) -> str:
+    """Generate platform-specific customer ID"""
+    if platform == "LINE" and identifier:
+        return f"LINE_{identifier}"
+    elif platform == "FB" and identifier:
+        return f"FB_{identifier}"
+    elif platform == "IG" and identifier:
+        return f"IG_{identifier}"
+    elif platform == "WEB":
+        # For web orders, use phone number as unique identifier
+        if identifier:
+            return f"WEB_{identifier}"
+        else:
+            return f"WEB_{str(uuid.uuid4())[:8]}"
+    else:
+        return f"UNKNOWN_{str(uuid.uuid4())[:8]}"
+
+async def find_or_create_customer(name: str, phone: str, platform: str = "WEB", platform_user_id: str = None) -> str:
+    """Smart customer management - find existing or create new with proper platform ID"""
+    try:
+        print(f"🔍 Processing customer: name={name}, phone={phone}, platform={platform}")
+        
+        # Step 1: Try to find existing customer by phone (universal key)
+        existing_query = f"customers?phone=eq.{phone}&select=id,line_user_id&limit=1"
+        existing_customers = await supabase_request("GET", existing_query, use_service_key=False)
+        
+        if existing_customers and len(existing_customers) > 0:
+            customer_id = existing_customers[0]["id"]
+            current_platform_id = existing_customers[0]["line_user_id"]
+            
+            # Update platform ID if it's generic web ID and we have better info
+            if current_platform_id.startswith("WEB_") and len(current_platform_id) < 15 and platform != "WEB":
+                new_platform_id = generate_platform_id(platform, platform_user_id)
+                update_data = {"line_user_id": new_platform_id}
+                await supabase_request("PATCH", f"customers?id=eq.{customer_id}", update_data)
+                print(f"✅ Updated customer {customer_id} platform ID: {current_platform_id} → {new_platform_id}")
+            else:
+                print(f"✅ Found existing customer: {customer_id} ({current_platform_id})")
+            return customer_id
+        
+        # Step 2: Create new customer with proper platform ID
+        platform_id = generate_platform_id(platform, platform_user_id or phone)
+        customer_data = {
+            "display_name": name,
+            "phone": phone,
+            "line_user_id": platform_id  # This will be renamed to platform_id in future
+        }
+        
+        print(f"📝 Creating new customer: {customer_data}")
+        customer_result = await supabase_request("POST", "customers", customer_data)
+        
+        # Handle Supabase response patterns
+        if not customer_result or len(customer_result) == 0:
+            print("🔄 Customer created but no ID returned, fetching...")
+            fetch_query = f"customers?line_user_id=eq.{platform_id}&select=id&limit=1"
+            fetch_result = await supabase_request("GET", fetch_query, use_service_key=False)
+            if fetch_result and len(fetch_result) > 0:
+                customer_id = fetch_result[0]["id"]
+                print(f"✅ Fetched new customer ID: {customer_id}")
+                return customer_id
+        else:
+            customer_id = customer_result[0]["id"]
+            print(f"✅ Customer created with ID: {customer_id}")
+            return customer_id
+            
+        raise Exception("Failed to create or retrieve customer")
+        
+    except Exception as e:
+        print(f"❌ Customer operation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Customer operation failed: {str(e)}")
+
 @app.post("/api/orders/create")
 async def create_order(request: Request):
-    """Handle order creation from web app"""
+    """Handle order creation from web app with improved customer management"""
     try:
         order_data = await request.json()
-        print(f"Received order: {order_data}")
+        print(f"📦 Received order: {order_data}")
         
         # Validate input
         required_fields = ["cart", "contact"]
@@ -589,50 +836,15 @@ async def create_order(request: Request):
                 "notes": item.get("note", "")
             })
         
-        # Simple customer creation/find
-        print(f"🔍 Processing customer: name={contact['name']}, phone={contact['phone']}")
-        
-        # First try to find existing customer
-        customer_id = None
-        phone = contact['phone']
-        
-        try:
-            # Look for existing customer by phone
-            existing_query = f"customers?phone=eq.{phone}&select=id&limit=1"
-            existing_customers = await supabase_request("GET", existing_query, use_service_key=False)
-            
-            if existing_customers and len(existing_customers) > 0:
-                customer_id = existing_customers[0]["id"]
-                print(f"✅ Found existing customer: {customer_id}")
-            else:
-                # Create new customer
-                customer_data = {
-                    "display_name": contact["name"],
-                    "phone": contact["phone"],
-                    "line_user_id": f"WEB_{str(uuid.uuid4())[:8]}"
-                }
-                
-                print(f"📝 Creating new customer: {customer_data}")
-                # Use direct endpoint without ?select=
-                customer_result = await supabase_request("POST", "customers", customer_data)
-                
-                # If result is empty, the customer was created but not returned
-                # Query again to get the ID
-                if not customer_result or len(customer_result) == 0:
-                    print("🔄 Customer created but no ID returned, fetching...")
-                    # Query by line_user_id which is unique
-                    fetch_query = f"customers?line_user_id=eq.{customer_data['line_user_id']}&select=id&limit=1"
-                    fetch_result = await supabase_request("GET", fetch_query, use_service_key=False)
-                    if fetch_result and len(fetch_result) > 0:
-                        customer_id = fetch_result[0]["id"]
-                        print(f"✅ Fetched customer ID: {customer_id}")
-                else:
-                    customer_id = customer_result[0]["id"]
-                    print(f"✅ Customer created with ID: {customer_id}")
-                    
-        except Exception as e:
-            print(f"❌ Customer operation error: {e}")
-            raise HTTPException(status_code=500, detail=f"Customer operation failed: {str(e)}")
+        # Smart customer management with platform detection
+        platform = order_data.get("platform", "WEB")
+        platform_user_id = order_data.get("platform_user_id")
+        customer_id = await find_or_create_customer(
+            contact["name"], 
+            contact["phone"], 
+            platform, 
+            platform_user_id
+        )
         
         if not customer_id:
             raise HTTPException(status_code=500, detail="Failed to get customer ID")
@@ -687,6 +899,21 @@ async def create_order(request: Request):
             print(f"❌ Order items creation failed: {e}")
             raise HTTPException(status_code=500, detail=f"Order items creation failed: {str(e)}")
         
+        # Send order confirmation to customer
+        try:
+            await send_order_confirmation(
+                order_number=order_number,
+                customer_phone=contact["phone"],
+                customer_name=contact["name"],
+                platform=platform,
+                platform_user_id=platform_user_id,
+                total_amount=total_amount,
+                items_count=len(validated_items)
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to send order confirmation: {e}")
+            # Don't fail the order creation if confirmation fails
+        
         # TODO: Send staff notification (LINE push message to staff)
         # This would require staff LINE user IDs in system_settings
         
@@ -703,6 +930,58 @@ async def create_order(request: Request):
     except Exception as e:
         print(f"Order creation error: {e}")
         raise HTTPException(status_code=500, detail="Order creation failed")
+
+@app.get("/api/orders/{order_number}")
+async def get_order_status(order_number: str):
+    """Get order status for tracking page"""
+    try:
+        print(f"🔍 Getting status for order: {order_number}")
+        
+        # Query order with customer and items
+        order_query = f"orders?order_number=eq.{order_number}&select=*,order_items(*,menus(name,price))&limit=1"
+        orders = await supabase_request("GET", order_query, use_service_key=False)
+        
+        if not orders:
+            raise HTTPException(status_code=404, detail="Order not found")
+        
+        order = orders[0]
+        
+        # Calculate totals
+        items_total = sum(item.get('total_price', 0) for item in order.get('order_items', []))
+        
+        return {
+            "order_number": order["order_number"],
+            "status": order["status"],
+            "customer_name": order["customer_name"],
+            "customer_phone": order["customer_phone"],
+            "total_amount": order["total_amount"],
+            "payment_status": order.get("payment_status", "unpaid"),
+            "order_type": order.get("order_type", "pickup"),
+            "created_at": order["created_at"],
+            "items": [
+                {
+                    "name": item.get("menu_name", item.get("menus", {}).get("name", "Unknown")),
+                    "quantity": item["quantity"],
+                    "unit_price": item["unit_price"],
+                    "total_price": item["total_price"],
+                    "notes": item.get("notes", "")
+                }
+                for item in order.get("order_items", [])
+            ],
+            "status_history": [
+                {"status": "pending", "text": "รอการยืนยัน", "completed": True},
+                {"status": "confirmed", "text": "ยืนยันแล้ว", "completed": order["status"] in ["confirmed", "preparing", "ready", "completed"]},
+                {"status": "preparing", "text": "กำลังเตรียม", "completed": order["status"] in ["preparing", "ready", "completed"]},
+                {"status": "ready", "text": "พร้อมรับ", "completed": order["status"] in ["ready", "completed"]},
+                {"status": "completed", "text": "เสร็จสิ้น", "completed": order["status"] == "completed"}
+            ]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error getting order status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get order status")
 
 @app.post("/webhook/fb")
 async def facebook_webhook(request: Request):
