@@ -335,37 +335,70 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         print(f"❌ Order creation error: {e}")
         raise HTTPException(status_code=500, detail=f"Order creation failed: {str(e)}")
 
+@app.get("/api/debug/recent-orders")
+async def debug_recent_orders():
+    """Debug endpoint to see recent orders with full timestamps"""
+    try:
+        query = "orders?order=created_at.desc&limit=10&select=order_number,created_at,customer_name,total_amount"
+        orders = await supabase_request("GET", query, use_service_key=False)
+        return {"recent_orders": orders or []}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/api/orders/today")
 async def get_today_orders():
     """Get all orders for today (for staff dashboard)"""
     try:
-        from datetime import date, datetime
-        today = date.today()
+        from datetime import date, datetime, timedelta, timezone
         
-        print(f"🔍 Getting orders for date: {today}")
+        # Thailand timezone (UTC+7)
+        thailand_tz = timezone(timedelta(hours=7))
+        thailand_now = datetime.now(thailand_tz)
+        today_thailand = thailand_now.date()
         
-        # Query recent orders (last 24 hours) with customer and items data
-        # Using broader query first to check what's available
+        print(f"🔍 Getting orders for Thailand date: {today_thailand}")
+        print(f"🕐 Thailand time now: {thailand_now}")
+        
+        # Query recent orders with customer and items data
         query = "orders?order=created_at.desc&limit=50&select=*,order_items(quantity,unit_price,total_price,menu_name,notes)"
         all_orders = await supabase_request("GET", query, use_service_key=False)
         
         if not all_orders:
             all_orders = []
         
-        # Filter orders for today (client-side filtering as fallback)
+        # Filter orders for today in Thailand timezone
         today_orders = []
-        today_str = today.isoformat()
+        today_str = today_thailand.isoformat()
         
         for order in all_orders:
-            order_date = order.get("created_at", "")
-            if order_date.startswith(today_str):
-                today_orders.append(order)
+            order_created_at = order.get("created_at", "")
+            if order_created_at:
+                try:
+                    # Parse UTC datetime and convert to Thailand timezone
+                    if order_created_at.endswith('Z'):
+                        utc_dt = datetime.fromisoformat(order_created_at.replace('Z', '+00:00'))
+                    elif '+00:00' in order_created_at:
+                        utc_dt = datetime.fromisoformat(order_created_at)
+                    else:
+                        # Assume UTC if no timezone info
+                        utc_dt = datetime.fromisoformat(order_created_at).replace(tzinfo=timezone.utc)
+                    
+                    thailand_dt = utc_dt.astimezone(thailand_tz)
+                    order_date_thailand = thailand_dt.date()
+                    
+                    print(f"📅 Order {order.get('order_number')}: UTC={order_created_at[:19]} → Thailand={thailand_dt.strftime('%Y-%m-%d %H:%M:%S')} → Date={order_date_thailand}")
+                    
+                    if order_date_thailand == today_thailand:
+                        today_orders.append(order)
+                except Exception as e:
+                    print(f"❌ Error parsing date for order {order.get('order_number')}: {e}")
         
-        print(f"📊 Found {len(all_orders)} total orders, {len(today_orders)} today")
+        print(f"📊 Found {len(all_orders)} total orders, {len(today_orders)} today (Thailand)")
         
         return {
             "orders": today_orders,
             "date": today_str,
+            "thailand_time": thailand_now.isoformat(),
             "total_count": len(today_orders),
             "debug_info": {
                 "total_orders_found": len(all_orders),

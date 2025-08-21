@@ -1033,19 +1033,9 @@
                     setTimeout(() => {
                         const actualOrderId = result.order_number || result.order_id;
                         const trackingUrl = result.tracking_url || `${window.location.origin}/order-status.html?order=${actualOrderId}`;
-                        const confirmResult = confirm(`🎉 สั่งอาหารเรียบร้อย!\n\n` +
-                              `📋 ออเดอร์: #${actualOrderId}\n` +
-                              `👤 ชื่อ: ${customerName}\n` +
-                              `📞 เบอร์: ${cleanPhone}\n` +
-                              `💰 ยอดรวม: ${totalPrice} บาท\n` +
-                              `📦 จำนวนรายการ: ${cart.length}\n\n` +
-                              `✨ ขอบคุณที่ใช้บริการ Tenzai Sushi\n` +
-                              `ทางร้านจะติดต่อกลับเร็วๆ นี้ค่ะ\n\n` +
-                              `กดตกลงเพื่อดูสถานะออเดอร์`);
                         
-                        if (confirmResult) {
-                            window.open(trackingUrl, '_blank');
-                        }
+                        // Show payment info modal
+                        showPaymentInfoModal(actualOrderId, customerName, cleanPhone, totalPrice, cart.length, trackingUrl);
                     }, 1000);
                     
                     // Clear cart after success
@@ -1099,6 +1089,132 @@
             document.getElementById('serviceKey').value = key;
             connectDatabase();
         });
+        
+        // Payment Info Modal Function
+        function showPaymentInfoModal(orderId, customerName, phone, totalPrice, itemsCount, trackingUrl) {
+            // Create modal HTML
+            const modalHtml = `
+                <div id="paymentModal" style="
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                    background: rgba(0,0,0,0.7); z-index: 10000; display: flex; 
+                    align-items: center; justify-content: center; padding: 20px;
+                ">
+                    <div style="
+                        background: white; border-radius: 12px; padding: 24px; 
+                        max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                    ">
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <h2 style="color: #FF6B35; margin: 0;">🎉 สั่งอาหารเรียบร้อย!</h2>
+                        </div>
+                        
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>📋 ออเดอร์:</span>
+                                <strong>#${orderId}</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>👤 ชื่อ:</span>
+                                <span>${customerName}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>📞 เบอร์:</span>
+                                <span>${phone}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                <span>💰 ยอดรวม:</span>
+                                <strong style="color: #FF6B35;">${totalPrice} บาท</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>📦 จำนวนรายการ:</span>
+                                <span>${itemsCount}</span>
+                            </div>
+                        </div>
+                        
+                        <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <h3 style="color: #856404; margin: 0 0 10px 0;">💳 ชำระเงิน</h3>
+                            <div style="margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>เลขบัญชี:</span>
+                                    <span style="font-weight: bold;">012-3-45678-9</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                    <span>ชื่อบัญชี:</span>
+                                    <span>Tenzai Sushi</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                                    <span>ธนาคาร:</span>
+                                    <span>กสิกรไทย (พร้อมเพย์)</span>
+                                </div>
+                                <button onclick="copyAccountNumber()" style="
+                                    width: 100%; padding: 10px; background: #28a745; color: white; 
+                                    border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+                                ">📋 คัดลอกเลขบัญชี</button>
+                            </div>
+                            <div style="text-align: center; color: #856404; font-size: 14px;">
+                                📝 โอนแล้วส่งสลิปใน LINE<br>
+                                ✨ ทางร้านจะยืนยันภายใน 5 นาที
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px;">
+                            <button onclick="window.open('${trackingUrl}', '_blank')" style="
+                                flex: 1; padding: 12px; background: #007bff; color: white; 
+                                border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+                            ">📋 ติดตามออเดอร์</button>
+                            <button onclick="closePaymentModal()" style="
+                                flex: 1; padding: 12px; background: #6c757d; color: white; 
+                                border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+                            ">ปิด</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function copyAccountNumber() {
+            const accountNumber = '012-3-45678-9';
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                // Modern approach
+                navigator.clipboard.writeText(accountNumber).then(() => {
+                    alert('✅ คัดลอกเลขบัญชีแล้ว!\n012-3-45678-9');
+                }).catch(() => {
+                    fallbackCopy(accountNumber);
+                });
+            } else {
+                // Fallback for older browsers
+                fallbackCopy(accountNumber);
+            }
+        }
+        
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                alert('✅ คัดลอกเลขบัญชีแล้ว!\n012-3-45678-9');
+            } catch (err) {
+                alert('📝 เลขบัญชี: 012-3-45678-9\n(กรุณาคัดลอกด้วยตนเอง)');
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function closePaymentModal() {
+            const modal = document.getElementById('paymentModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
     </script>
 </body>
 </html>

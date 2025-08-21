@@ -37,21 +37,29 @@ WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
 - [Decided] **Platform ID System**: `LINE_{user_id}`, `FB_{user_id}`, `WEB_{phone}` สำหรับ multi-platform customer management
 - [Decided] **งดใช้ n8n** เปลี่ยนเป็น **Python FastAPI** เพื่อความเร็วและ memory efficiency
 
-## Risks & Mitigations (Top-5)
-1) **Supabase Free pause / quota** → ตั้ง health-ping เบา ๆ + สรุปแชทแทนเก็บยาว  
-2) **Webhook abuse** → ลายเซ็น + timestamp + rate limit ที่ n8n  
-3) **ราคาไม่ตรง** จากหน้าเว็บ → n8n re-price จาก DB ก่อนสร้าง order ทุกครั้ง  
-4) **n8n workflow หยุดทำงาน** → monitor health endpoint + auto-restart + backup notification channel  
-5) **OpenRouter API limit/cost** → set max tokens + fallback basic responses + usage tracking
+## Business Impact (Expected Results)
+🎯 **Primary Goals Achievement:**
+1) **ลดเวลาตอบลูกค้า 80%** (จาก 5 นาที เหลือ 1 นาที)
+2) **รับออเดอร์ได้ 24/7** แม้พนักงานไม่อยู่  
+3) **ไม่พลาดออเดอร์** เพราะมี notification หลายช่องทาง
+4) **ลูกค้าจ่ายเงินง่าย** ผ่าน QR Code PromptPay
+5) **ติดตามออเดอร์ real-time** ลูกค้าไม่ต้องถาม
+
+## Risks & Mitigations (Production Focus)
+1) **Staff ไม่เห็น notification** → หลาย channel: LINE + Dashboard + Email backup
+2) **Payment QR ไม่ทำงาน** → Fallback เป็น manual transfer + phone notification  
+3) **Production server ล่ม** → Monitor + auto-restart + backup ngrok tunnel
+4) **Database quota เต็ม** → Daily cleanup + archive old data + upgrade plan
+5) **LINE webhook หยุด** → Health check endpoint + retry mechanism
 
 ## Progress (Status)
 - Infra / DB / Admin / WebApp: ✅ พร้อมใช้งาน
 - Multi-Platform Customer Management: ✅ เสร็จสมบูรณ์
 - Order Confirmation System: ✅ เสร็จสมบูรณ์ (LINE Push + Tracking)
-- Real-time Order Tracking: ✅ เสร็จสมบูรณ์
+- Real-time Order Tracking: ✅ เสร็จสมบูรณ์ (Fixed 100% working)
 - Deep Linking & UX Flow: ✅ เสร็จสมบูรณ์
 - **Last Updated:** 20 สิงหาคม 2025
-- **% Completion (rough):** Infra 100 / DB 100 / WebApp 100 / Chatbot 85 / Core Features 90
+- **% Completion (rough):** Infra 100 / DB 100 / WebApp 100 / Chatbot 90 / Core Features 95
 
 ## Next Tasks (Measurable)
 ### Phase 1: Core Chatbot ✅ COMPLETED
@@ -67,19 +75,81 @@ WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
 - [x] Platform-aware customer management
 - [x] Error handling + retry logic สำหรับ failed orders
 
-### Phase 3: Remaining Tasks (Optional)
-- [ ] Staff notification system (LINE push to staff)
-- [ ] Admin dashboard สำหรับดู orders real-time
+## 🚀 PRODUCTION READY PLAN (5 Days)
+
+### Phase 3: Critical Features for Go-Live
+**Priority 1 (Days 1-2):** Staff Management System - MOST CRITICAL ⚡
+- [ ] Staff LINE notification system (เมื่อมีออเดอร์ใหม่)
+- [ ] Staff orders dashboard (/webappadmin/staff-orders.html)
+- [ ] Order status management (preparing/ready/completed)
+- [ ] Real-time notifications + hourly summaries
+
+**Priority 2 (Day 3):** Payment Integration 💳
+- [ ] QR Code PromptPay generation
+- [ ] Payment proof upload system
+- [ ] Auto-generate QR in order confirmation
+- [ ] Payment status tracking
+
+**Priority 3 (Day 4):** Production Deployment - Supabase + Render 🌐
+- [ ] Prepare Code for Production
+  - Create requirements.txt
+  - Update main.py for Render (PORT environment variable)
+  - Add keep-alive mechanism (prevent sleep)
+  - Test all endpoints locally
+
+- [ ] Deploy to Render (Free 750 hours/month)
+  - Connect GitHub repository to Render
+  - Configure build: pip install -r requirements.txt
+  - Configure start: python chatbot-api/main.py
+  - Set environment variables (Supabase keys, LINE tokens)
+  - Deploy and verify
+
+- [ ] Setup Custom Domain: tenzaionline.tech
+  - Add custom domain in Render dashboard
+  - Configure DNS CNAME records
+  - Verify SSL certificate (automatic)
+
+- [ ] Optimize Database Performance
+  - Enable Supabase connection pooling
+  - Create performance indexes
+  - Verify RLS policies
+
+- [ ] Update LINE Webhook
+  - Change webhook URL to: tenzaionline.tech/webhook/line
+  - Test webhook functionality
+
+**Priority 4 (Day 5):** Testing & Monitoring 🔧
+- [ ] Load testing (100 concurrent orders)
+- [ ] Error recovery testing
+- [ ] Admin login system + password protection
+- [ ] Daily database backup automation
+- [ ] Uptime monitoring setup (UptimeRobot)
+
+### Phase 4: Future Enhancements (After Launch)
 - [ ] Facebook/Instagram webhook implementation
-- [ ] Basic analytics: orders/day, popular items
-- [ ] Payment integration (QR Code/PromptPay)
+- [ ] Basic analytics dashboard
+- [ ] Multi-branch support
+- [ ] Advanced AI features
 
-### Phase 3: Production Ready (Week 3)
-- [ ] Load testing + performance optimization
-- [ ] Backup/disaster recovery plan
-- [ ] Monitor + alerting setup (health checks)
-- [ ] Documentation + handover materials
+## Production Stack Decision
+🎯 **Final Architecture: Supabase + Render**
+- **Database:** Supabase Free (500MB) - Real-time, RLS, Auto-backup
+- **Backend:** Render Free (750 hours/month) - Python FastAPI native
+- **Domain:** tenzaionline.tech - Custom domain with auto SSL
+- **Cost:** $0/month - 100% free tier combination
 
-## Guardrails (Do / Don’t)
-- **Do:** สั้น กระชับ ตรวจสอบได้, ใส่ `TODO:` เมื่อข้อมูลไม่พอ  
-- **Don’t:** เสนอเทคโนโลยีเกินความสามารถ Free plan / เปลี่ยนสถาปัตยกรรม / สร้างไฟล์อื่น
+🔥 **Why This Priority Order:**
+1. **Staff notification = CRITICAL** - ถ้าไม่มีนี้ระบบไร้ความหมาย
+2. **Payment = รายได้** - ยิ่งจ่ายง่าย ยิ่งสั่งเยอะ  
+3. **Production = เสถียร** - Single domain, professional hosting
+4. **Monitoring = ความมั่นใจ** - รู้ทันทีเมื่อระบบล่ม
+
+⚠️ **สิ่งที่ไม่ทำตอนนี้:**
+- ❌ Multiple hosting platforms (Railway, Vercel) - เพื่อความเรียบง่าย
+- ❌ Facebook/Instagram (ใช้ LINE ก่อน ค่อยขยาย)
+- ❌ Complex AI (FAQ พอ ประหยัด cost)  
+- ❌ Multi-branch (ร้านเดียวก่อน scale ทีหลัง)
+
+## Guardrails (Do / Don't)
+- **Do:** เน้น features ที่ส่งผลต่อรายได้ทันที, ทดสอบทุก feature ก่อน deploy
+- **Don't:** เพิ่ม feature ที่ซับซ้อน / เปลี่ยนโครงสร้างหลัก / ใช้ resource เกิน Free plan

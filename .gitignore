@@ -138,6 +138,12 @@ schema.json
 schema-*.json
 database-export.sql
 
+# MCP Server Configuration (contains sensitive tokens)
+mcp_server.md
+*mcp*.md
+claude-mcp-config.json
+*mcp-config*.json
+
 # Development artifacts
 test-*
 debug-*
