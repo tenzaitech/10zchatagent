@@ -21,7 +21,14 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 async def create_order(request: Request, background_tasks: BackgroundTasks):
     """Create a new order from WebOrder form"""
     try:
-        data = await request.json()
+        # Parse JSON data with proper error handling
+        try:
+            data = await request.json()
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail="Invalid JSON format")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Failed to parse request data")
+            
         print(f"📝 Creating order with data: {json.dumps(data, indent=2, ensure_ascii=False)}")
         
         # Validate required fields
@@ -30,17 +37,29 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
             if field not in data:
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
+        # Validate field values
+        if not data["customer_name"].strip():
+            raise HTTPException(status_code=400, detail="Customer name cannot be empty")
+        
+        if not data["customer_phone"].strip() or len(data["customer_phone"]) < 10:
+            raise HTTPException(status_code=400, detail="Invalid phone number format")
+        
         if not data["items"]:
             raise HTTPException(status_code=400, detail="Order must contain at least one item")
         
+        if float(data["total_amount"]) <= 0:
+            raise HTTPException(status_code=400, detail="Total amount must be positive")
+        
+        if data["order_type"] not in ["pickup", "delivery"]:
+            raise HTTPException(status_code=400, detail="Order type must be 'pickup' or 'delivery'")
+        
         # Create or find customer
-        customer_data = {
-            "display_name": data["customer_name"],
-            "phone": data["customer_phone"],
-            "platform_id": f"WEB_{data['customer_phone']}",
-            "platform_type": "WEB"
-        }
-        customer = await find_or_create_customer(customer_data)
+        customer_id = await find_or_create_customer(
+            name=data["customer_name"],
+            phone=data["customer_phone"],
+            platform="WEB",
+            platform_user_id=data["customer_phone"]
+        )
         
         # Generate order number
         thailand_tz = timezone('Asia/Bangkok')
@@ -50,7 +69,7 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         # Prepare order data
         order_data = {
             "order_number": order_number,
-            "customer_id": customer["id"],
+            "customer_id": customer_id,
             "customer_name": data["customer_name"],
             "customer_phone": data["customer_phone"],
             "total_amount": float(data["total_amount"]),
@@ -92,7 +111,7 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         print(f"✅ Order created successfully: {order_number}")
         
         # Send notifications in background
-        background_tasks.add_task(send_order_confirmation, order, customer)
+        background_tasks.add_task(send_order_confirmation, order, {"id": customer_id})
         background_tasks.add_task(send_staff_notification, order)
         
         return {
