@@ -7,7 +7,7 @@
 
 ---
 
-## 🎯 CURRENT SPRINT: Staff Management System
+## 🔧 CURRENT SPRINT: DATABASE V2 + CODE REFACTORING (Day 1/7)
 
 ### ✅ COMPLETED (Status: DONE)
 - [x] **Core Infrastructure** - FastAPI, Supabase, LINE webhook
@@ -23,40 +23,170 @@
 
 ---
 
-## 🔥 NEXT TASKS (Priority Order)
+## 🔧 DATABASE V2 + CODE REFACTORING PLAN (7 Days)
 
-### 📍 **PHASE 1: Payment Integration** (Days 1-2) - CRITICAL FOR REVENUE 💳
-- [ ] **PromptPay QR Code Generation**
-  - [ ] Research/install Thai PromptPay QR libraries (pymobile-payment or thai-qr-code)
-  - [ ] Create payment service module (services/payment_service.py)
-  - [ ] Generate QR code for order total + reference number
-  - [ ] Add QR display in order confirmation (both web + LINE message)
-  - [ ] Test QR codes with mobile banking apps
+### 🎯 **MAJOR UPGRADE OBJECTIVES:**
+1. **Database Performance:** 80% faster queries (500ms → 100ms)
+2. **Payment System:** Complete PromptPay QR + slip verification 
+3. **Code Quality:** main.py (703 lines) → modular (<200 lines/file)
+4. **Scalability:** 10x capacity (1,000 → 10,000 orders/day)
+5. **Zero Downtime:** Dual-write migration strategy
 
-- [ ] **Payment Proof Upload System**
-  - [ ] Create payment slip upload API endpoint
-  - [ ] Add file upload functionality to web interface
-  - [ ] Payment verification workflow (manual review)
-  - [ ] Update order status after payment confirmation
-  - [ ] Notify customer when payment is verified
+---
 
-### 📍 **PHASE 2: Staff System Configuration** (Day 3) - FINAL SETUP ⚡
-- [x] **Staff Dashboard** ✅ COMPLETED
-  - [x] Create `/admin/staff-orders.html` 
-  - [x] Real-time orders list (today's orders)
-  - [x] Update order status buttons (Preparing → Ready → Completed)
-  - [x] Order details functionality
+## 📅 **DAILY MIGRATION TASKS**
 
-- [x] **Staff Notification Backend** ✅ COMPLETED
-  - [x] Staff notification service implementation
-  - [x] Instant order alerts (name, phone, items, total)
-  - [x] LINE Flex Message templates
+### 📍 **DAY 1: Documentation + Planning** (TODAY) 🔄 IN PROGRESS
+- [x] **Update CLAUDE.md** ✅ COMPLETED - Database V2 architecture documented
+- [🔄] **Update PROJECT-TODO.md** ✅ IN PROGRESS - Migration checklist
+- [ ] **Create Migration Structure**
+  - [ ] Create migrations/ folder with SQL scripts
+  - [ ] Create rollback_scripts/ folder
+  - [ ] Setup version control for migration tracking
 
-- [ ] **Production Configuration**
-  - [ ] Configure STAFF_LINE_ID in production environment (.env)
-  - [ ] Test end-to-end staff notification flow
-  - [ ] Setup backup notification channels (email)
-  - [ ] Document staff onboarding process
+### 📍 **DAY 2-3: Database Schema Enhancement**
+- [ ] **New Tables Creation** (Day 2 Morning)
+  - [ ] payment_transactions (complete payment lifecycle)
+  - [ ] order_status_history (audit trail)
+  - [ ] staff_actions (security audit)
+  - [ ] settings (dynamic configuration)
+
+- [ ] **Existing Tables Enhancement** (Day 2 Afternoon)
+  - [ ] customers: Add platform_type, lifetime_value, tags, merged_from
+  - [ ] customers: RENAME line_user_id → platform_id  
+  - [ ] orders: Add branch_id, delivery_fee, discount_amount, net_amount
+  - [ ] orders: Add delivery_address (JSONB), completed_at, metadata
+
+- [ ] **Performance Optimization** (Day 3)
+  - [ ] Create primary indexes (status, date, phone, platform_id)
+  - [ ] Create composite indexes (date+status, customer+date)
+  - [ ] Create partial indexes (pending orders, today's orders)
+  - [ ] Setup RLS policies for new tables
+
+### 📍 **DAY 4-5: Code Refactoring**
+- [ ] **Router Separation** (Day 4 Morning)
+  - [ ] Create routers/ folder structure
+  - [ ] routers/orders.py (150 lines - order CRUD operations)
+  - [ ] routers/webhooks.py (100 lines - LINE webhook handling)
+  - [ ] routers/admin.py (100 lines - admin dashboard pages)
+  - [ ] routers/health.py (50 lines - debug & health endpoints)
+  - [ ] routers/static.py (50 lines - HTML file serving)
+
+- [ ] **Services Layer** (Day 4 Afternoon)
+  - [ ] services/database_v2.py (dual-write mechanism)
+  - [ ] services/payment_service.py (QR generation & verification)
+  - [ ] services/migration_service.py (data migration utilities)
+  - [ ] Enhance services/notification_service.py
+
+- [ ] **Schemas & Models** (Day 5 Morning)
+  - [ ] schemas/order_schemas.py (Pydantic models)
+  - [ ] schemas/payment_schemas.py (Payment validation)
+  - [ ] schemas/customer_schemas.py (Customer data models)
+
+- [ ] **Dual-Write Implementation** (Day 5 Afternoon)
+  - [ ] Implement write-to-both-schemas mechanism
+  - [ ] Add feature flags for gradual migration
+  - [ ] Create data integrity validation
+  - [ ] Setup migration monitoring
+
+### 📍 **DAY 6: Testing & Validation**
+- [ ] **Unit Testing** (Morning)
+  - [ ] Test all new database operations
+  - [ ] Test dual-write data consistency
+  - [ ] Test payment QR generation
+  - [ ] Test audit trail functionality
+
+- [ ] **Integration Testing** (Afternoon)
+  - [ ] End-to-end order flow testing
+  - [ ] Payment verification workflow
+  - [ ] Staff notification system
+  - [ ] Rollback procedure validation
+
+- [ ] **Performance Benchmarking** (Evening)
+  - [ ] Measure query response times
+  - [ ] Load test with 100 concurrent orders
+  - [ ] Memory usage optimization
+  - [ ] Database connection pooling
+
+### 📍 **DAY 7: Production Switch**
+- [ ] **Morning: Go-Live**
+  - [ ] Switch to new database schema
+  - [ ] Enable new code architecture
+  - [ ] Monitor system health
+  - [ ] Validate payment system
+
+- [ ] **Afternoon: Optimization**
+  - [ ] Performance monitoring
+  - [ ] Fix any emerging issues
+  - [ ] Optimize slow queries
+  - [ ] User acceptance testing
+
+- [ ] **Evening: Cleanup**
+  - [ ] Remove old code/schema
+  - [ ] Update documentation
+  - [ ] Create post-migration report
+  - [ ] Plan next phase (Production Deployment)
+
+---
+
+## 🛡️ **ROLLBACK PROCEDURES**
+
+### **Emergency Rollback (< 1 minute):**
+```bash
+# Database rollback
+./migrations/rollback_scripts/emergency_rollback.sh
+
+# Code rollback  
+git checkout ac92d46  # Checkpoint 2 Before Big Upgrade
+
+# Service restart
+sudo systemctl restart chatbot-api
+```
+
+### **Gradual Rollback (Feature Flags):**
+```bash
+# Environment variable control
+export MIGRATION_MODE="old"  # old|dual|new
+
+# Specific feature rollback
+export USE_NEW_PAYMENT="false"
+export USE_NEW_SCHEMA="false"
+```
+
+### **Data Recovery:**
+```bash
+# Restore from backup
+./scripts/restore_from_backup.sh YYYY-MM-DD-HH-MM
+
+# Validate data integrity
+./scripts/validate_data_integrity.sh
+```
+
+---
+
+## ✅ **SUCCESS METRICS & CHECKPOINTS**
+
+### **Performance Targets:**
+- [ ] Query response time: 500ms → 100ms (80% improvement)
+- [ ] Database capacity: 1,000 → 10,000 orders/day (10x scale)
+- [ ] Code maintainability: Files < 200 lines each
+- [ ] System uptime: 100% during migration
+
+### **Daily Checkpoints:**
+- **End of Day 1:** Documentation complete, migration structure ready
+- **End of Day 2:** New tables created, columns added successfully  
+- **End of Day 3:** All indexes created, performance improved
+- **End of Day 4:** Code separated into modules, compiles successfully
+- **End of Day 5:** Dual-write working, data consistent
+- **End of Day 6:** All tests passing, rollback validated
+- **End of Day 7:** Production ready, old system deprecated
+
+### **Quality Gates:**
+1. **Code Quality:** ESLint/PyLint passes, no critical warnings
+2. **Test Coverage:** >80% unit test coverage
+3. **Performance:** All critical queries <100ms
+4. **Security:** All RLS policies tested and working
+5. **Documentation:** All new code documented and reviewed
 
 ### 📍 **PHASE 3C: Production Deployment** (Day 4) 
 - [ ] **Code Preparation**
