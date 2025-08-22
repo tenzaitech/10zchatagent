@@ -10,9 +10,10 @@
 ## Project Snapshot (One-Pager)
 - **Business Goal (3 บรรทัด):**  
   1) ลดภาระตอบลูกค้าด้วยตนเอง  2) ทำให้สั่งอาหารได้สะดวกผ่าน 1 URL  3) ลดขั้นตอนรับออร์เดอร์  
-- **Channels:** LINE, Facebook Messenger, Instagram DM  
-- **Customer URL (หนึ่งเดียว):** `https://order.tenzaitech.online`
-- **Stack:** Python FastAPI (API server), Supabase Free (DB/REST), ngrok (webhook tunnel), OpenRouter (AI responses)
+- **Channels:** LINE (primary), Facebook Messenger, Instagram DM  
+- **Customer URL (หนึ่งเดียว):** `https://tenzai-order.ap.ngrok.io` (dev) → `https://tenzaionline.tech` (prod)
+- **Stack:** Python FastAPI (API server), Supabase Free (DB/REST), ngrok (dev tunnel) → Render (production), OpenRouter (AI responses)
+- **Current Status:** 🚀 90% Production Ready - Core features complete, payment integration pending
 - **Core Principles:**  
   - Read (เมนู/หมวด/ตั้งค่า) ผ่าน **anon key + RLS SELECT-only**  
   - Write (orders/order_items/customers/conversations) ผ่าน **FastAPI + service role** เท่านั้น  
@@ -58,8 +59,10 @@ WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
 - Order Confirmation System: ✅ เสร็จสมบูรณ์ (LINE Push + Tracking)
 - Real-time Order Tracking: ✅ เสร็จสมบูรณ์ (Fixed 100% working)
 - Deep Linking & UX Flow: ✅ เสร็จสมบูรณ์
-- **Last Updated:** 20 สิงหาคม 2025
-- **% Completion (rough):** Infra 100 / DB 100 / WebApp 100 / Chatbot 90 / Core Features 95
+- Staff Orders Dashboard: ✅ เสร็จสมบูรณ์ (Fixed timezone + API endpoint issues)
+- Staff Notification Service: ✅ เสร็จสมบูรณ์ (รอ config STAFF_LINE_ID เท่านั้น)
+- **Last Updated:** 21 สิงหาคม 2025
+- **% Completion (rough):** Infra 100 / DB 100 / WebApp 100 / Chatbot 95 / Staff System 80 / Payment 0 / Production 0
 
 ## Next Tasks (Measurable)
 ### Phase 1: Core Chatbot ✅ COMPLETED
@@ -78,17 +81,19 @@ WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
 ## 🚀 PRODUCTION READY PLAN (5 Days)
 
 ### Phase 3: Critical Features for Go-Live
-**Priority 1 (Days 1-2):** Staff Management System - MOST CRITICAL ⚡
-- [ ] Staff LINE notification system (เมื่อมีออเดอร์ใหม่)
-- [ ] Staff orders dashboard (/webappadmin/staff-orders.html)
-- [ ] Order status management (preparing/ready/completed)
-- [ ] Real-time notifications + hourly summaries
-
-**Priority 2 (Day 3):** Payment Integration 💳
-- [ ] QR Code PromptPay generation
+**Priority 1 (Days 1-2):** Payment Integration 💳 - CRITICAL FOR REVENUE
+- [ ] QR Code PromptPay generation library integration
 - [ ] Payment proof upload system
 - [ ] Auto-generate QR in order confirmation
-- [ ] Payment status tracking
+- [ ] Payment status tracking and verification
+- [ ] Payment slip validation API
+
+**Priority 2 (Day 3):** Staff System Configuration ⚡
+- [x] Staff orders dashboard (/webappadmin/staff-orders.html) ✅ COMPLETED
+- [x] Staff LINE notification system ✅ COMPLETED (service ready)
+- [ ] Configure STAFF_LINE_ID in production environment
+- [ ] Test staff notification flow end-to-end
+- [ ] Setup backup notification channels
 
 **Priority 3 (Day 4):** Production Deployment - Supabase + Render 🌐
 - [ ] Prepare Code for Production
@@ -139,16 +144,16 @@ WebOrder (1 URL) →  SELECT (menus/categories/settings) via anon+RLS
 - **Cost:** $0/month - 100% free tier combination
 
 🔥 **Why This Priority Order:**
-1. **Staff notification = CRITICAL** - ถ้าไม่มีนี้ระบบไร้ความหมาย
-2. **Payment = รายได้** - ยิ่งจ่ายง่าย ยิ่งสั่งเยอะ  
-3. **Production = เสถียร** - Single domain, professional hosting
+1. **Payment = รายได้** - ยิ่งจ่ายง่าย ยิ่งสั่งเยอะ (ทำให้มีรายได้ทันที)
+2. **Staff system = ดำเนินการ** - dashboard เสร็จแล้ว เหลือแค่ config
+3. **Production = เสถียร** - Single domain, professional hosting  
 4. **Monitoring = ความมั่นใจ** - รู้ทันทีเมื่อระบบล่ม
 
 ⚠️ **สิ่งที่ไม่ทำตอนนี้:**
-- ❌ Multiple hosting platforms (Railway, Vercel) - เพื่อความเรียบง่าย
-- ❌ Facebook/Instagram (ใช้ LINE ก่อน ค่อยขยาย)
-- ❌ Complex AI (FAQ พอ ประหยัด cost)  
-- ❌ Multi-branch (ร้านเดียวก่อน scale ทีหลัง)
+- ❌ Facebook/Instagram integration (ใช้ LINE ก่อน ค่อยขยาย)
+- ❌ Complex AI features (FAQ พอ ประหยัด cost)  
+- ❌ Multi-branch support (ร้านเดียวก่อน scale ทีหลัง)
+- ❌ Code refactoring (ทำหลัง production แล้ว)
 
 ## Guardrails (Do / Don't)
 - **Do:** เน้น features ที่ส่งผลต่อรายได้ทันที, ทดสอบทุก feature ก่อน deploy
