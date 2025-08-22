@@ -64,7 +64,7 @@ def run_safety_tests():
     
     # Test 3: Order Management
     total_tests += 1
-    if test_endpoint("Today's Orders", "GET", "/api/orders/today"):
+    if test_endpoint("Today's Orders", "GET", "/api/orders/status/today"):
         tests_passed += 1
     
     # Test 4: Order Lookup (existing order)

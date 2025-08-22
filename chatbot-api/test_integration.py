@@ -156,7 +156,7 @@ def test_system_health_check():
     
     health_checks = [
         ("/health", "Health Endpoint"),
-        ("/api/orders/today", "Orders API"),
+        ("/api/orders/status/today", "Orders API"),
         ("/api/schema/inspect", "Admin API"), 
         ("/", "Static Files")
     ]

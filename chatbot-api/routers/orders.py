@@ -113,8 +113,25 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         print(f"✅ Order created successfully: {order_number}")
         
         # Send notifications in background
-        background_tasks.add_task(send_order_confirmation, order, {"id": customer_id})
-        background_tasks.add_task(send_staff_notification, order)
+        background_tasks.add_task(
+            send_order_confirmation,
+            order_number,
+            data["customer_phone"],  # customer_phone
+            data["customer_name"],   # customer_name
+            "WEB",                   # platform
+            data["customer_phone"],  # platform_user_id
+            float(data["total_amount"]),  # total_amount
+            len(data["items"]),      # items_count
+            data["items"]            # items_list
+        )
+        background_tasks.add_task(
+            send_staff_notification,
+            order_number,
+            data["customer_name"],
+            data["customer_phone"],
+            float(data["total_amount"]),
+            data["items"]
+        )
         
         return {
             "success": True,
@@ -131,7 +148,7 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         print(f"❌ Error creating order: {e}")
         raise HTTPException(status_code=500, detail="Failed to create order")
 
-@router.get("/today")
+@router.get("/status/today")
 async def get_today_orders():
     """Get today's orders for staff dashboard"""
     try:
@@ -176,6 +193,12 @@ async def get_today_orders():
 @router.get("/{order_number}")
 async def get_order_status(order_number: str):
     """Get order status for tracking page"""
+    print(f"🔍 Starting get_order_status for: {order_number}")
+    
+    # Prevent conflict with /today endpoint
+    if order_number.lower() == "today":
+        raise HTTPException(status_code=400, detail="Invalid order number")
+    
     try:
         print(f"🔍 Getting status for order: {order_number}")
         
@@ -183,50 +206,71 @@ async def get_order_status(order_number: str):
         order_query = f"orders?order_number=eq.{order_number}&select=*,order_items(*,menus(name,price))&limit=1"
         orders = await supabase_request("GET", order_query, use_service_key=False)
         
-        if not orders:
+        print(f"🔍 Orders result: {orders}")
+        print(f"🔍 Orders type: {type(orders)}")
+        print(f"🔍 Orders length: {len(orders) if orders else 'None'}")
+        
+        if not orders or len(orders) == 0:
             raise HTTPException(status_code=404, detail="Order not found")
         
         order = orders[0]
+        print(f"🔍 Order data: {order}")
+        
+        # Safely get order_items
+        order_items = order.get("order_items", []) if order else []
+        print(f"🔍 Order items: {order_items}")
         
         # Transform items data for frontend
         transformed_items = []
-        for item in order.get("order_items", []):
-            transformed_items.append({
-                "name": item.get("menus", {}).get("name", item.get("menu_name", "Unknown Item")),
-                "quantity": item.get("quantity", 1),
-                "unit_price": item.get("unit_price", 0),
-                "total_price": item.get("total_price", 0),
-                "notes": item.get("notes", "")
-            })
+        if order_items:
+            for item in order_items:
+                print(f"🔍 Processing item: {item}")
+                # Handle both nested menus object and direct menu_name
+                menu_data = item.get("menus") if item else None
+                if menu_data and isinstance(menu_data, dict):
+                    menu_name = menu_data.get("name", item.get("menu_name", "Unknown Item"))
+                else:
+                    menu_name = item.get("menu_name", "Unknown Item") if item else "Unknown Item"
+                
+                transformed_items.append({
+                    "name": menu_name,
+                    "quantity": item.get("quantity", 1) if item else 1,
+                    "unit_price": item.get("unit_price", 0) if item else 0,
+                    "total_price": item.get("total_price", 0) if item else 0,
+                    "notes": item.get("notes", "") if item else ""
+                })
         
         # Create status timeline
+        current_status = order.get("status", "pending") if order else "pending"
         status_timeline = [
             {"status": "pending", "text": "รับออเดอร์แล้ว", "completed": True},
-            {"status": "confirmed", "text": "ยืนยันออเดอร์", "completed": order["status"] in ["confirmed", "preparing", "ready", "completed"]},
-            {"status": "preparing", "text": "กำลังเตรียมอาหาร", "completed": order["status"] in ["preparing", "ready", "completed"]},
-            {"status": "ready", "text": "เตรียมเสร็จแล้ว", "completed": order["status"] in ["ready", "completed"]},
-            {"status": "completed", "text": "เสร็จสิ้น", "completed": order["status"] == "completed"}
+            {"status": "confirmed", "text": "ยืนยันออเดอร์", "completed": current_status in ["confirmed", "preparing", "ready", "completed"]},
+            {"status": "preparing", "text": "กำลังเตรียมอาหาร", "completed": current_status in ["preparing", "ready", "completed"]},
+            {"status": "ready", "text": "เตรียมเสร็จแล้ว", "completed": current_status in ["ready", "completed"]},
+            {"status": "completed", "text": "เสร็จสิ้น", "completed": current_status == "completed"}
         ]
         
         return {
-            "order_number": order["order_number"],
-            "status": order["status"],
-            "customer_name": order.get("customer_name", "N/A"),
-            "customer_phone": order.get("customer_phone", "N/A"),
-            "total_amount": order["total_amount"], 
-            "payment_status": order.get("payment_status", "unpaid"),
-            "order_type": order.get("order_type", "pickup"),
-            "created_at": order["created_at"],
+            "order_number": order.get("order_number", "Unknown") if order else "Unknown",
+            "status": order.get("status", "unknown") if order else "unknown",
+            "customer_name": order.get("customer_name", "N/A") if order else "N/A",
+            "customer_phone": order.get("customer_phone", "N/A") if order else "N/A",
+            "total_amount": order.get("total_amount", 0) if order else 0, 
+            "payment_status": order.get("payment_status", "unpaid") if order else "unpaid",
+            "order_type": order.get("order_type", "pickup") if order else "pickup",
+            "created_at": order.get("created_at", "") if order else "",
             "items": transformed_items,
             "status_history": status_timeline,
-            "notes": order.get("notes", "")
+            "notes": order.get("notes", "") if order else ""
         }
         
     except HTTPException:
         raise
     except Exception as e:
         print(f"❌ Error getting order status: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get order status")
+        import traceback
+        print(f"❌ Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to get order status: {str(e)}")
 
 @router.patch("/{order_number}/status")
 async def update_order_status(order_number: str, request: Request):

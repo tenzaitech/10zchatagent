@@ -17,6 +17,10 @@ async def supabase_request(method: str, endpoint: str, data: Dict = None, use_se
             "Content-Type": "application/json"
         }
         
+        # Add Prefer header for POST requests to return created data
+        if method == "POST":
+            headers["Prefer"] = "return=representation"
+        
         url = f"{SUPABASE_URL}/rest/v1/{endpoint}"
         print(f"📡 {method} {endpoint} (service_key: {use_service_key})")
         
@@ -38,8 +42,14 @@ async def supabase_request(method: str, endpoint: str, data: Dict = None, use_se
             print(f"   Response: {response.text}")
             raise HTTPException(status_code=500, detail=f"Database error: {response.status_code} - {response.text}")
         
-        result = response.json() if response.text else {}
-        print(f"✅ Supabase response: {len(str(result))} chars")
+        # Handle response body - Supabase may return empty body with 201 status
+        if response.text:
+            result = response.json()
+            print(f"✅ Supabase response: {len(str(result))} chars")
+        else:
+            result = []
+            print(f"✅ Supabase response: Empty body (Status {response.status_code})")
+        
         return result
         
     except httpx.TimeoutException:
