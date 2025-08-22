@@ -83,10 +83,12 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         
         # Create order
         created_orders = await supabase_request("POST", "orders", order_data)
-        if not created_orders:
-            raise HTTPException(status_code=500, detail="Failed to create order")
+        if not created_orders or len(created_orders) == 0:
+            print(f"❌ Supabase returned empty result for order creation")
+            raise HTTPException(status_code=500, detail="Database failed to create order")
         
         order = created_orders[0]
+        print(f"✅ Order record created in database: {order.get('id', 'Unknown ID')}")
         
         # Create order items
         total_calculated = 0
