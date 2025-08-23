@@ -6,6 +6,8 @@ key.md
 keys.md
 credentials.md
 secrets.md
+privatekey.md
+private*.md
 
 # API Keys and tokens
 *api_key*
@@ -148,3 +150,19 @@ claude-mcp-config.json
 test-*
 debug-*
 *.test.log
+
+# Screenshots and feedback photos (prevent context bloat)
+feedbackphoto/*.png
+feedbackphoto/*.jpg
+feedbackphoto/*.jpeg
+feedbackphoto/*.gif
+feedbackphoto/*.webp
+archive/screenshots/
+archive/
+
+# Large files that cause 413 Context Window errors
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp

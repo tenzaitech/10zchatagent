@@ -120,11 +120,18 @@ async def find_or_create_customer(name: str, phone: str, platform: str = "WEB", 
                 print(f"✅ Found existing customer by phone: {customer_id} ({current_platform_id})")
             return customer_id
         
-        # Step 3: Create new customer with proper platform ID
+        # Step 3: Create new customer with proper platform ID (V2 schema)
         customer_data = {
             "display_name": name,
             "phone": phone,
-            "line_user_id": platform_id  # This will be renamed to platform_id in future
+            "line_user_id": platform_id,  # Keep for backward compatibility
+            "platform_type": platform,  # V2 field
+            "merged_from": [],  # V2 field
+            "lifetime_value": 0.00,  # V2 field
+            "tags": [],  # V2 field
+            "metadata": {},  # V2 field
+            "total_orders": 0,  # Default value
+            "total_spent": 0.00  # Default value
         }
         
         print(f"📝 Creating new customer: {customer_data}")

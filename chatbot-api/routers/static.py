@@ -21,6 +21,10 @@ async def root():
 async def customer_webapp():
     return FileResponse(os.path.join(static_dir, "customer_webapp.html"))
 
+@router.get("/order")
+async def order_page():
+    return FileResponse(os.path.join(static_dir, "customer_webapp.html"))
+
 @router.get("/order-status.html") 
 async def order_status():
     return FileResponse(os.path.join(static_dir, "order-status.html"))
@@ -38,4 +42,12 @@ async def admin_menu():
 
 @router.get("/admin/staff-orders.html")
 async def staff_orders():
+    return FileResponse(os.path.join(static_dir, "admin", "staff-orders.html"))
+
+@router.get("/staff")
+async def staff_dashboard():
+    return FileResponse(os.path.join(static_dir, "admin", "staff-orders.html"))
+
+@router.get("/admin")
+async def admin_dashboard():
     return FileResponse(os.path.join(static_dir, "admin", "staff-orders.html"))

@@ -959,31 +959,35 @@
             showStatus('กำลังส่งออเดอร์...', 'info');
             
             try {
-                // Prepare order data for n8n WF-B
+                // Calculate total amount
+                const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                
+                // Prepare order data for FastAPI
                 const orderData = {
-                    channel: platformInfo.platform.toLowerCase(), // Dynamic channel detection
-                    source: 'web',
-                    cart: cart.map(item => ({
-                        menu_id: item.menu_id,
-                        qty: item.quantity,
-                        note: null // Future: add note field in UI
+                    customer_name: customerName.trim(),
+                    customer_phone: cleanPhone,
+                    total_amount: totalAmount,
+                    order_type: "pickup", // Default to pickup
+                    payment_method: "cash",
+                    notes: "",
+                    items: cart.map(item => ({
+                        id: item.menu_id,
+                        name: item.name,
+                        quantity: item.quantity,
+                        price: item.price,
+                        total: item.price * item.quantity
                     })),
-                    contact: {
-                        name: customerName.trim(),
-                        phone: cleanPhone
-                    },
-                    // Platform information for multi-platform customer management
+                    // Platform information for tracking
                     platform: platformInfo.platform,
-                    platform_user_id: platformInfo.user_id,
-                    user_ref: {
-                        line_user_id: null // Deprecated, handled by new platform system
-                    }
+                    platform_user_id: platformInfo.user_id
                 };
                 
                 console.log('Sending order to API:', orderData);
                 
-                // Send to Python API endpoint (same origin)
-                const API_BASE_URL = ''; // Use relative path (same origin)
+                // Send to Python API endpoint
+                const API_BASE_URL = window.location.hostname.includes('ngrok.io') || window.location.hostname.includes('ngrok.app')
+                    ? '' // Same origin for ngrok
+                    : 'http://localhost:8000'; // Local development
                 
                 console.log('Current hostname:', window.location.hostname);
                 console.log('Using API_BASE_URL:', API_BASE_URL);
@@ -1009,7 +1013,19 @@
                     }
                 } catch (parseError) {
                     console.error('JSON Parse Error:', parseError);
-                    result = { status: 'success', message: 'สั่งอาหารเรียบร้อยแล้ว' };
+                    
+                    // Check if blocked by Kaspersky or other antivirus
+                    if (responseText.includes('Kaspersky') || responseText.includes('<!DOCTYPE') || responseText.includes('<html>')) {
+                        alert('⚠️ Request ถูกบล็อกโดย Antivirus/Firewall\nกรุณาปิด Web Protection หรือเพิ่ม exception สำหรับ ngrok.io');
+                        showStatus('❌ การเชื่อมต่อถูกบล็อก - กรุณาตรวจสอบ Antivirus settings');
+                        return;
+                    }
+                    
+                    // Real error - don't pretend success
+                    console.error('Server response:', responseText);
+                    result = { status: 'error', message: 'ไม่สามารถเชื่อมต่อกับ server ได้' };
+                    showStatus('❌ เกิดข้อผิดพลาดในการสั่งอาหาร');
+                    return;
                 }
                 
                 console.log('API Parsed Result:', result);

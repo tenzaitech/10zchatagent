@@ -1,0 +1,45 @@
+# Claude Context Rules - Prevent 413 Error
+# กำหนดไฟล์ที่ไม่ควรโหลดเข้า context เพื่อลดขนาด
+
+## 🚫 IGNORE LARGE FILES
+# Screenshots และรูปภาพ
+feedbackphoto/*.png
+feedbackphoto/*.jpg
+feedbackphoto/*.jpeg
+feedbackphoto/*.gif
+
+# Git objects และ history
+.git/objects/**
+.git/logs/**
+.git/refs/**
+
+# Node modules ถ้ามี
+node_modules/**
+__pycache__/**
+*.pyc
+
+## 📏 SIZE LIMITS  
+# HTML files > 800 lines ให้ใช้ summary แทน
+webappadmin/customer_webapp.html  # 1235 lines - too large
+# ถ้าจำเป็นต้องอ่าน ให้ระบุ section เฉพาะ เช่น:
+# - Read specific functions only
+# - Use Grep to find specific code blocks
+
+## ✅ PREFER CONTEXT-EFFICIENT TOOLS
+# ใช้ Grep แทนการ Read ไฟล์ใหญ่
+# ใช้ Glob เพื่อค้นหาไฟล์เฉพาะ
+# ใช้ /compact เมื่อ context ใกล้เต็ม
+
+## 📋 CONTEXT OPTIMIZATION STRATEGY
+# 1. เก็บเฉพาะไฟล์ที่เกี่ยวข้องกับ task ปัจจุบัน
+# 2. ใช้ link references แทนการ copy เนื้อหา
+# 3. Split การทำงานเป็น sessions เล็กๆ  
+# 4. Archive screenshots ที่ไม่ใช้แล้ว
+
+## 🎯 CURRENT TASK FOCUS
+# Database V2 Migration - Day 1
+# เก็บเฉพาะ:
+# - CLAUDE.md (core instructions) 
+# - PROJECT-TODO.md (current tasks)
+# - chatbot-api/main.py (code structure)
+# - Migration related files only

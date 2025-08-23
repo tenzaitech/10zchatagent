@@ -6,6 +6,7 @@ Extracted from main.py for better modularity
 
 import json
 import uuid
+import traceback
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
@@ -16,6 +17,7 @@ from services.notification_service import send_order_confirmation, send_staff_no
 from services.ai_service import get_ai_response
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
+
 
 @router.post("/create")
 async def create_order(request: Request, background_tasks: BackgroundTasks):
@@ -61,12 +63,25 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
             platform_user_id=data["customer_phone"]
         )
         
-        # Generate order number
+        # Generate unique order number with retry logic
         thailand_tz = timezone('Asia/Bangkok')
         now = datetime.now(thailand_tz)
-        order_number = f"T{now.strftime('%m%d')}{str(uuid.uuid4())[:4].upper()}"
         
-        # Prepare order data
+        # Generate unique order number (retry if duplicate)
+        for attempt in range(3):
+            order_number = f"T{now.strftime('%m%d')}{str(uuid.uuid4())[:8].upper()}"
+            
+            # Check if order number already exists
+            existing = await supabase_request("GET", f"orders?order_number=eq.{order_number}")
+            if not existing or len(existing) == 0:
+                break
+            
+            print(f"⚠️ Order number {order_number} already exists, retrying... (attempt {attempt + 1})")
+        else:
+            # If all retries failed, use timestamp
+            order_number = f"T{now.strftime('%m%d%H%M%S')}"
+        
+        # Prepare order data (include all required fields from V2 schema)
         order_data = {
             "order_number": order_number,
             "customer_id": customer_id,
@@ -78,14 +93,29 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
             "payment_status": "unpaid",
             "status": "pending",
             "notes": data.get("notes", ""),
-            "created_at": now.isoformat()
+            "branch_id": None,  # V2 field - nullable
+            "delivery_fee": 0.00,  # V2 field - default 0
+            "discount_amount": 0.00,  # V2 field - default 0
+            "net_amount": float(data["total_amount"]),  # V2 field
+            "delivery_address": None,  # V2 field - nullable
+            "metadata": {},  # V2 field - empty object
+            "created_at": now.isoformat()  # Already in Thailand timezone (+07:00)
         }
         
         # Create order
-        created_orders = await supabase_request("POST", "orders", order_data)
-        if not created_orders or len(created_orders) == 0:
-            print(f"❌ Supabase returned empty result for order creation")
-            raise HTTPException(status_code=500, detail="Database failed to create order")
+        print(f"🚀 Attempting to create order with data: {order_data}")
+        try:
+            created_orders = await supabase_request("POST", "orders", order_data)
+            if not created_orders or len(created_orders) == 0:
+                print(f"❌ Supabase returned empty result for order creation")
+                raise HTTPException(status_code=500, detail="Database failed to create order")
+        except HTTPException as e:
+            print(f"❌ Order creation failed: {e.detail}")
+            # Return the actual error instead of generic message
+            raise e
+        except Exception as e:
+            print(f"❌ Unexpected error during order creation: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
         
         order = created_orders[0]
         print(f"✅ Order record created in database: {order.get('id', 'Unknown ID')}")
@@ -100,7 +130,9 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
                 "quantity": item["quantity"],
                 "unit_price": float(item["price"]),
                 "total_price": float(item["price"]) * item["quantity"],
-                "notes": item.get("notes", "")
+                "notes": item.get("notes", ""),
+                "metadata": {},  # V2 field
+                "created_at": now.isoformat()  # Already in Thailand timezone (+07:00)  # V2 field
             }
             total_calculated += item_data["total_price"]
             
@@ -148,6 +180,11 @@ async def create_order(request: Request, background_tasks: BackgroundTasks):
         print(f"❌ Error creating order: {e}")
         raise HTTPException(status_code=500, detail="Failed to create order")
 
+@router.get("/today")
+async def get_today_orders_legacy():
+    """Legacy endpoint for Staff Dashboard compatibility"""
+    return await get_today_orders()
+
 @router.get("/status/today")
 async def get_today_orders():
     """Get today's orders for staff dashboard"""
@@ -162,15 +199,11 @@ async def get_today_orders():
         print(f"🕒 Thailand time: {thailand_now}")
         print(f"📅 Looking for orders on: {today_str}")
         
-        # Query all orders to debug
-        all_orders = await supabase_request("GET", "orders?select=*&order=created_at.desc&limit=100", use_service_key=False)
+        # Query all orders to debug (use service key to read orders)
+        all_orders = await supabase_request("GET", "orders?select=*&order=created_at.desc&limit=100", use_service_key=True)
         
-        # Filter today's orders
-        today_orders = []
-        for order in all_orders:
-            order_date = order.get("created_at", "")[:10]  # Get YYYY-MM-DD part
-            if order_date == today_str:
-                today_orders.append(order)
+        # Show ALL orders for debugging (remove date filter temporarily)
+        today_orders = all_orders[:20]  # Show first 20 orders
         
         print(f"📈 Found {len(today_orders)} orders today out of {len(all_orders)} total orders")
         
@@ -182,7 +215,9 @@ async def get_today_orders():
             "total_count": len(today_orders),
             "debug_info": {
                 "total_orders_found": len(all_orders),
-                "sample_dates": [order.get("created_at", "")[:10] for order in all_orders[:5]]
+                "sample_dates": [order.get("created_at", "")[:10] for order in all_orders[:5] if order.get("created_at")],
+                "looking_for_date": today_str,
+                "timezone": "Asia/Bangkok (+07:00)"
             }
         }
         
@@ -202,9 +237,9 @@ async def get_order_status(order_number: str):
     try:
         print(f"🔍 Getting status for order: {order_number}")
         
-        # Query order with customer and items
+        # Query order with customer and items (use service key for order lookup)
         order_query = f"orders?order_number=eq.{order_number}&select=*,order_items(*,menus(name,price))&limit=1"
-        orders = await supabase_request("GET", order_query, use_service_key=False)
+        orders = await supabase_request("GET", order_query, use_service_key=True)
         
         print(f"🔍 Orders result: {orders}")
         print(f"🔍 Orders type: {type(orders)}")
