@@ -3,7 +3,7 @@ AI service - OpenRouter AI and intent classification
 Independent AI-related functions
 """
 import httpx
-from modules.config import OPENROUTER_API_KEY, FALLBACK_MESSAGE
+from config import OPENROUTER_API_KEY, FALLBACK_MESSAGE
 
 async def get_ai_response(message: str, user_id: str = "") -> str:
     """Get AI response from Claude 3.5 Sonnet with fallback"""

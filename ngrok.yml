@@ -2,13 +2,20 @@ version: "2"
 authtoken: 2yTjQNuKS08A117LzkLt2hlMndn_5j3EPsM6C59BMwNJmLfhD
 
 tunnels:
-  tenzai-order:
+  chatbot:
     proto: http
-    addr: 3000
+    addr: 8001
+    subdomain: tenzai-chat
+    inspect: true
+    
+  order:
+    proto: http
+    addr: 8002
     subdomain: tenzai-order
     inspect: true
   
-  api:
+  # Original service as fallback
+  api-fallback:
     proto: http
     addr: 8000
     inspect: true

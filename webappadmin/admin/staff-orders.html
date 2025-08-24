@@ -268,14 +268,14 @@
         function getApiEndpoint() {
             // ถ้าเปิดจาก file:// protocol ให้ใช้ localhost เสมอ
             if (window.location.protocol === 'file:') {
-                console.log('🔍 Detected file:// protocol, using localhost API');
-                return 'http://localhost:8000';
+                console.log('🔍 Detected file:// protocol, using order service API');
+                return 'http://localhost:8002';
             }
             
-            // ถ้าเปิดจาก localhost แล้วให้ใช้ localhost API
+            // ถ้าเปิดจาก localhost แล้วให้ใช้ order service port
             if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-                console.log('🔍 Detected localhost, using localhost API');
-                return 'http://localhost:8000';
+                console.log('🔍 Detected localhost, using order service API');
+                return 'http://localhost:8002';
             }
             
             // กรณีอื่นๆ (production) ใช้ ngrok
@@ -344,9 +344,9 @@
                 } else if (error.message.includes('CORS') || error.message.includes('fetch')) {
                     errorMessage = 'ปัญหาการเชื่อมต่อ (CORS/Network)';
                     if (window.location.protocol === 'file:') {
-                        suggestion = 'เปิดผ่าน <strong>http://localhost:8000/admin/staff-orders.html</strong>';
+                        suggestion = 'เปิดผ่าน <strong>http://localhost:8002/admin/staff-orders.html</strong>';
                     } else {
-                        suggestion = 'ตรวจสอบว่า API server ทำงานอยู่ที่ localhost:8000';
+                        suggestion = 'ตรวจสอบว่า Order Service ทำงานอยู่ที่ localhost:8002';
                     }
                 } else {
                     errorMessage = 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ';
@@ -536,8 +536,8 @@
                     Timestamp: ${new Date().toLocaleString('th-TH')}<br><br>
                     <strong>💡 Recommendations:</strong><br>
                     ${window.location.protocol === 'file:' ? 
-                        '• เข้าผ่าน http://localhost:8000/admin/staff-orders.html<br>• หรือ http://localhost:8080/admin/staff-orders.html' :
-                        '• ตรวจสอบว่า API server รันอยู่ที่ localhost:8000<br>• เช็ค Network tab ใน Developer Tools (F12)'
+                        '• เข้าผ่าน http://localhost:8002/admin/staff-orders.html<br>• หรือ http://localhost:8080/admin/staff-orders.html' :
+                        '• ตรวจสอบว่า Order Service รันอยู่ที่ localhost:8002<br>• เช็ค Network tab ใน Developer Tools (F12)'
                     }
                 `;
             } else {
